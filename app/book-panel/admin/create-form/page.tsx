@@ -43,7 +43,7 @@ export default function CreateFormPage() {
     setError(null)
 
     try {
-      const response = await fetch(`/api/forms/${id}`)
+      const response = await fetch(`/book-panel/api/forms/${id}`)
 
       if (!response.ok) {
         if (response.status === 404) {

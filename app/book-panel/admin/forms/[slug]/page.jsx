@@ -8,17 +8,17 @@ export const revalidate = 3600; // Revalidate every hour (ISR)
 export async function generateStaticParams() {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/forms`, {
+    const res = await fetch(`${baseUrl}/book-panel/api/forms`, {
       cache: 'no-store'
     });
-    
+
     if (!res.ok) {
       console.error('Failed to fetch forms for static generation');
       return [];
     }
-    
+
     const forms = await res.json();
-    
+
     // Return array of params for each form
     return forms
       .filter(form => form.active && form.slug) // Only generate for active forms
@@ -35,14 +35,14 @@ export async function generateStaticParams() {
 async function getFormData(slug) {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/forms/${slug}`, {
+    const res = await fetch(`${baseUrl}/book-panel/api/forms/${slug}`, {
       next: { revalidate: 3600 } // Cache for 1 hour
     });
-    
+
     if (!res.ok) {
       return null;
     }
-    
+
     return res.json();
   } catch (error) {
     console.error('Error fetching form:', error);
@@ -53,13 +53,13 @@ async function getFormData(slug) {
 // ✅ Generate metadata for SEO
 export async function generateMetadata({ params }) {
   const form = await getFormData(params.slug);
-  
+
   if (!form) {
     return {
       title: 'Form Not Found',
     };
   }
-  
+
   return {
     title: form.title,
     description: form.description || `Fill out the ${form.title} form`,

@@ -59,7 +59,7 @@ export default function FormsPage() {
       </div>
 
       <FormsList
-        onEdit={(id) => router.push(`/admin/create-form?edit=${id}`)}
+        onEdit={(id) => router.push(`/book-panel/admin/create-form?edit=${id}`)}
         onDelete={(id) => deleteForm(id)}
         onToggleActive={(id) => toggleActive(id)}
       />

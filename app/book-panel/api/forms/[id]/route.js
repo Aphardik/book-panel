@@ -51,7 +51,7 @@ export async function OPTIONS() {
 
 export async function GET(request, { params }) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Check if id is a number or a slug
     const isNumeric = /^\d+$/.test(id);

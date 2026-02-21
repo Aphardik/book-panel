@@ -12,14 +12,14 @@ const Dashboard = () => {
     async function fetchForms() {
       try {
         setLoading(true);
-        const res = await fetch("https://apformgenerator.netlify.app/api/forms");
-        
+        const res = await fetch("/book-panel/api/forms");
+
         if (!res.ok) {
           throw new Error(`Failed to fetch forms: ${res.statusText}`);
         }
-        
+
         const data = await res.json();
-        
+
         // Sort by order field (ascending)
         const sortedData = data.sort((a, b) => {
           if (a.order !== null && a.order !== undefined && b.order !== null && b.order !== undefined) {
@@ -29,7 +29,7 @@ const Dashboard = () => {
           if (b.order !== null && b.order !== undefined) return 1;
           return new Date(b.created_at) - new Date(a.created_at);
         });
-        
+
         setFormsData(sortedData);
         setError(null);
       } catch (err) {
@@ -39,7 +39,7 @@ const Dashboard = () => {
         setLoading(false);
       }
     }
-    
+
     fetchForms();
   }, []);
 
@@ -112,7 +112,7 @@ const Dashboard = () => {
               <Book className="h-8 w-8 " />
             </div>
           </div>
-          
+
           <div className="border  rounded-sm p-6 ">
             <div className="flex items-center justify-between">
               <div>
@@ -122,7 +122,7 @@ const Dashboard = () => {
               <Eye className="h-8 w-8 " />
             </div>
           </div>
-          
+
           <div className="border  rounded-sm p-6 ">
             <div className="flex items-center justify-between">
               <div>
@@ -146,20 +146,19 @@ const Dashboard = () => {
             {/* Forms Grid */}
             <div className="grid grid-cols-1 font-anek lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {formsData.map((form) => (
-                <div 
-                  key={form.id} 
-                  className={`border shadow-md hover:shadow-xl rounded-sm p-6 cursor-pointer transition-all duration-200 ${
-                    selectedForm?.id === form.id 
-                      ? '' 
+                <div
+                  key={form.id}
+                  className={`border shadow-md hover:shadow-xl rounded-sm p-6 cursor-pointer transition-all duration-200 ${selectedForm?.id === form.id
+                      ? ''
                       : ''
-                  }`}
+                    }`}
                   onClick={() => setSelectedForm(selectedForm?.id === form.id ? null : form)}
                 >
                   {/* Thumbnail */}
                   {form.thumbnails && form.thumbnails.length > 0 && (
                     <div className="mb-4">
-                      <img 
-                        src={form.thumbnails[0]} 
+                      <img
+                        src={form.thumbnails[0]}
                         alt={form.title}
                         className="w-full h-32 object-contain rounded-sm"
                         onError={(e) => {
@@ -220,13 +219,12 @@ const Dashboard = () => {
 
                   {/* Link */}
                   <div className="mt-4 pt-4 border-t">
-                    <a 
+                    <a
                       href={`https://adhyatm-parivar-stagging.netlify.app/pages/forms?form=${form.slug}`}
-                      target="_blank" 
+                      target="_blank"
                       rel="noopener noreferrer"
-                      className={`flex items-center gap-2 text-sm hover:underline ${
-                        selectedForm?.id === form.id ? '' : ''
-                      }`}
+                      className={`flex items-center gap-2 text-sm hover:underline ${selectedForm?.id === form.id ? '' : ''
+                        }`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <ExternalLink className="h-4 w-4" />

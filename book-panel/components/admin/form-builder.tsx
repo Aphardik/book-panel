@@ -382,13 +382,13 @@ export function FormBuilder({
 
       if (editingForm) {
         // Update existing form
-        response = await fetch(`/api/forms/${editingForm.id}`, {
+        response = await fetch(`/book-panel/api/forms/${editingForm.id}`, {
           method: 'PUT',
           body: formData,
         });
       } else {
         // Create new form
-        response = await fetch('/api/forms', {
+        response = await fetch('/book-panel/api/forms', {
           method: 'POST',
           body: formData,
         });
