@@ -5,17 +5,17 @@ import { useEffect, useState } from "react"
 import { FormBuilder } from "@/book-panel/components/admin/form-builder"
 import { useFormsStore } from "@/book-panel/components/admin/use-forms-store"
 import { FormDefinition } from "@/book-panel/components/admin/types"
-import { dbFormToComponentFormat } from "@/book-panel/app/utils/form-utils"
+import { dbFormToComponentFormat } from "@/book-panel/utils/form-utils"
 import { useToast } from "@/book-panel/hooks/use-toast"
 
 export default function CreateFormPage() {
-  
+
   const searchParams = useSearchParams()
   const editId = searchParams.get("edit")
   const router = useRouter()
   const { toast } = useToast()
   const { createForm, updateForm, getForm } = useFormsStore()
-  
+
   const [editingForm, setEditingForm] = useState<FormDefinition | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,17 +41,17 @@ export default function CreateFormPage() {
   async function fetchFormForEdit(id: string) {
     setIsLoading(true)
     setError(null)
-    
+
     try {
       const response = await fetch(`/api/forms/${id}`)
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error('Form not found')
         }
         throw new Error('Failed to fetch form data')
       }
-      
+
       const dbForm = await response.json()
       const form = dbFormToComponentFormat(dbForm)
       setEditingForm(form)
@@ -111,7 +111,7 @@ export default function CreateFormPage() {
             <div className="text-center">
               <div className="text-red-600 text-lg mb-4">Unable to Load Form</div>
               <p className="text-gray-600 mb-4">{error}</p>
-              <button 
+              <button
                 onClick={() => router.replace("/book-panel/admin/create-form")}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
               >
