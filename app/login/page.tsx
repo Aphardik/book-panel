@@ -21,6 +21,8 @@ const LoginForm: React.FC = () => {
         if (status === "authenticated") {
             if (session?.user?.role === "submission-admin") {
                 router.replace("/book-panel/admin/bookorder");
+            } else if (session?.user?.role === "agt-admin") {
+                router.replace("/agt-panel/admin/dashboard");
             } else {
                 router.replace(callbackUrl);
             }
