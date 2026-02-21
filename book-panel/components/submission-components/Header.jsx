@@ -55,8 +55,8 @@ const Header = ({
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const currentBook = searchParams.get('book');
-  const isDashboardPage = pathname === '/' || pathname === '/admin/bookorder';
-  const isRecentOrdersPage = pathname === '/admin/bookorder/recent-orders';
+  const isDashboardPage = pathname === '/' || pathname === '/book-panel/admin/bookorder';
+  const isRecentOrdersPage = pathname === '/book-panel/admin/bookorder/recent-orders';
 
   // Theme detection
   useEffect(() => {
@@ -543,7 +543,7 @@ const Header = ({
                         <a
                           href="/book-panel/admin/forms"
                           className={`flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted transition-colors ${
-                            pathname === '/admin/forms' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' : 'text-foreground'
+                            pathname === '/book-panel/admin/forms' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium' : 'text-foreground'
                           }`}
                         >
                           <MdLibraryAdd size={20} />

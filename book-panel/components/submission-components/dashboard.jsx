@@ -378,7 +378,7 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
             {bookComparisonData.map((book, index) => (
               <Link
-                href={`/admin/bookorder/view-submission?book=${book.collectionName}`}
+                href={`/book-panel/admin/bookorder/view-submission?book=${book.collectionName}`}
                 key={index}
                 className="bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg p-4 transition-all duration-200 border-l-4 hover:shadow-md cursor-pointer group"
                 style={{ borderLeftColor: COLORS[index % COLORS.length] }}
