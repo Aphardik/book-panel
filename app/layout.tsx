@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-    title: "AGT Merged Portal",
-    description: "Unified access to AGT Book and Book Panel",
+    title: "AP Book Panel",
+    description: "Access to AGT Panel and Book Panel",
 };
 
 import { Providers } from "./providers";
