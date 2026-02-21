@@ -1,0 +1,120 @@
+"use client"
+
+import { useRouter } from "next/navigation"
+import { FormsList } from "@/book-panel/components/admin/forms-list"
+import { useFormsStore } from "@/book-panel/components/admin/use-forms-store"
+import Link from "next/link"
+import { useEffect } from "react"
+import { useSession } from "next-auth/react"
+
+export default function FormsPage() {
+  const router = useRouter()
+  const { forms, deleteForm, toggleActive } = useFormsStore()
+  
+  // ✅ Use NextAuth session instead of manual fetch
+  const { data: session, status } = useSession()
+  const user = session?.user
+
+  // ✅ Redirect unauthorized users to access-denied
+  useEffect(() => {
+    if (status === "authenticated" && user) {
+      if (user.role !== "formbuilder-admin" && user.role !== "super admin") {
+        router.replace("/book-panel/access-denied")
+      }
+    }
+  }, [user, status, router])
+
+  // ✅ Show loading state while checking session
+  if (status === "loading") {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <p className="text-sm text-muted-foreground">Checking permissions...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ If user is not authenticated or not allowed (prevents flash)
+  if (
+    status === "unauthenticated" ||
+    !user ||
+    (user.role !== "formbuilder-admin" && user.role !== "super admin")
+  ) {
+    return null
+  }
+
+  // ✅ Authorized content
+  return (
+    <>
+      <div className="flex border-b-2 bg-muted z-50 px-4 py-2 sticky top-2 items-center justify-between mb-6">
+        <h2 className="text-lg font-semibold text-balance">Forms</h2>
+        <Link
+          className="font-bold text-sm px-4 py-2 bg-foreground text-background rounded-sm"
+          href="/book-panel/admin/create-form"
+        >
+          Create New
+        </Link>
+      </div>
+
+      <FormsList
+        onEdit={(id) => router.push(`/admin/create-form?edit=${id}`)}
+        onDelete={(id) => deleteForm(id)}
+        onToggleActive={(id) => toggleActive(id)}
+      />
+    </>
+  )
+}
+
+
+
+// "use client"
+
+// import { useRouter } from "next/navigation"
+// import { FormsList } from "@/book-panel/components/admin/forms-list"
+// import { useFormsStore } from "@/book-panel/components/admin/use-forms-store"
+// import Link from "next/link"
+// import { useEffect, useState } from "react"
+
+// export default function FormsPage() {
+//   const router = useRouter()
+//   const { forms, deleteForm, toggleActive } = useFormsStore()
+//   const [user, setUser] = useState<{ name: string; role: string } | null>(null)
+
+
+//   // Fetch user info
+//     useEffect(() => {
+//       async function fetchUser() {
+//         try {
+//           const res = await fetch("/book-panel/api/whoami")
+//           if (res.ok) {
+//             const data = await res.json()
+//             setUser({ name: data.name, role: data.role })
+//           } else {
+//             setUser(null)
+//           }
+//         } catch (err) {
+//           console.error("Failed to fetch user:", err)
+//         }
+//       }
+//       fetchUser()
+//     }, [])
+    
+//   return (
+//     <>
+//     <div className="flex border-b-2 bg-muted z-50 px-4 py-2 sticky top-2 items-center justify-between mb-6">
+//       <h2 className="text-lg font-semibold text-balance">Forms</h2>
+//        <Link className="font-bold text-sm px-4 py-2 bg-foreground text-background rounded-sm" href='/admin/create-form'>Create New</Link>
+//        </div>
+//       <FormsList
+//         onEdit={(id) => router.push(`/admin/create-form?edit=${id}`)}
+//         onDelete={(id) => deleteForm(id)}
+//         onToggleActive={(id) => toggleActive(id)}
+//       />
+//     </>
+//   )
+// }
+
+
+
