@@ -15,13 +15,17 @@ const UnifiedLogin: React.FC = () => {
     const router = useRouter();
     const searchParams = useSearchParams();
     const callbackUrl = searchParams.get("callbackUrl") || "/";
-    const { status } = useSession();
+    const { data: session, status } = useSession();
 
     useEffect(() => {
         if (status === "authenticated") {
-            router.replace(callbackUrl);
+            if (session?.user?.role === "submission-admin") {
+                router.replace("/book-panel/admin/bookorder");
+            } else {
+                router.replace(callbackUrl);
+            }
         }
-    }, [status, router, callbackUrl]);
+    }, [status, router, callbackUrl, session]);
 
     if (status === "loading") {
         return (

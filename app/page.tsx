@@ -23,10 +23,12 @@ export default function RootHomePage() {
   useEffect(() => {
     if (status === "unauthenticated") {
       router.replace("/login");
+    } else if (status === "authenticated" && session?.user?.role === "submission-admin") {
+      router.replace("/book-panel/admin/bookorder");
     }
-  }, [status, router]);
+  }, [status, session, router]);
 
-  if (status === "loading") {
+  if (status === "loading" || (status === "authenticated" && session?.user?.role === "submission-admin")) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white text-slate-900">
         <Loader2 className="w-8 h-8 animate-spin text-purple-600" />

@@ -1,9 +1,9 @@
-import RecentOrdersPage from '../../../../components/submission-components/RecentOrders'
+import RecentOrdersPage from '../../../../../book-panel/components/submission-components/RecentOrders'
 import React from 'react'
 
 const page = () => {
   return (
-    <RecentOrdersPage/>
+    <RecentOrdersPage />
   )
 }
 
