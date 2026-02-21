@@ -1,11 +1,11 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import { Eye, EyeOff, Lock, Mail, Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import Image from "next/image";
 
-const UnifiedLogin: React.FC = () => {
+const LoginForm: React.FC = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -75,11 +75,9 @@ const UnifiedLogin: React.FC = () => {
 
                 {/* Left column — decorative */}
                 <div className="hidden md:flex w-1/2 relative flex-col justify-between p-10 overflow-hidden">
-                    {/* Gradient mesh background */}
                     <div className="absolute inset-0 bg-gradient-to-br from-violet-500 via-indigo-500 to-blue-500 opacity-90" />
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-30 pointer-events-none" />
 
-                    {/* Decorative circles */}
                     <div className="absolute -top-16 -left-16 w-64 h-64 bg-white/10 rounded-full" />
                     <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-white/10 rounded-full" />
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 bg-white/5 rounded-full border border-white/20" />
@@ -94,15 +92,6 @@ const UnifiedLogin: React.FC = () => {
                             Access the Panel basis of your Role.
                         </p>
                     </div>
-
-                    {/* <div className="relative z-10 flex items-center gap-4">
-                        <div className="flex -space-x-2">
-                            {["bg-pink-400", "bg-yellow-400", "bg-emerald-400"].map((c, i) => (
-                                <div key={i} className={`w-7 h-7 rounded-full ${c} border-2 border-white/50`} />
-                            ))}
-                        </div>
-                        <p className="text-white/60 text-xs">Adhyatm Parivar</p>
-                    </div> */}
                 </div>
 
                 {/* Right column — form */}
@@ -169,7 +158,6 @@ const UnifiedLogin: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Terms checkbox */}
                         <div className="flex items-center gap-2">
                             <input
                                 type="checkbox"
@@ -195,13 +183,22 @@ const UnifiedLogin: React.FC = () => {
                                 <span>Log In</span>
                             )}
                         </button>
-
                     </form>
-
-
                 </div>
             </div>
         </div>
+    );
+};
+
+const UnifiedLogin: React.FC = () => {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                <Loader2 className="w-8 h-8 animate-spin text-violet-600" />
+            </div>
+        }>
+            <LoginForm />
+        </Suspense>
     );
 };
 
