@@ -12,6 +12,8 @@ import {
 import { initializeApp } from "firebase/app";
 import Header from "./Header";
 import TableUI from "./TableUI";
+import { generateShippingLabelsPDF } from "@book-panel/utils/shpping-label-generator"; // adjust path as needed
+
 
 // Firebase configuration
 const firebaseConfig = {
@@ -596,6 +598,29 @@ const DynamicBookOrderPage = () => {
     }
   };
 
+
+  //print labels on basis of checked records
+
+  const handleExportSelected = useCallback(async (type, selectedItems) => {
+    if (!selectedItems.length) return;
+
+    if (type === "labels") {
+      try {
+        setUpdateStatus({ type: "loading", message: `Generating labels for ${selectedItems.length} order(s)...` });
+        await generateShippingLabelsPDF(selectedItems, bookName || "Book Orders");
+        setUpdateStatus({ type: "success", message: "Labels downloaded successfully" });
+        setTimeout(() => setUpdateStatus(null), 3000);
+      } catch (error) {
+        console.error("Label generation error:", error);
+        setUpdateStatus({ type: "error", message: "Failed to generate labels" });
+        setTimeout(() => setUpdateStatus(null), 5000);
+      }
+      return;
+    }
+
+
+  }, [bookName]);
+
   const handleSaveParcelId = async () => {
     try {
       setUpdateStatus({
@@ -757,6 +782,8 @@ const DynamicBookOrderPage = () => {
       return processedItem;
     });
   };
+
+
 
   if (error) {
     return (
@@ -1216,6 +1243,7 @@ const DynamicBookOrderPage = () => {
             extraData={extraDataColumns}
             bookName={bookName}
             onMarkDelivered={handleMarkAsDelivered}
+            onExportSelected={handleExportSelected}
           />
         </div>
 

@@ -29,6 +29,7 @@ import {
 } from "firebase/firestore";
 import Header from "./Header";
 import TableUI from "./TableUI";
+import { generateShippingLabelsPDF } from "@book-panel/utils/shpping-label-generator"; // adjust path as needed
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -185,6 +186,8 @@ const RecentOrdersPage = () => {
     afterOrderId: "",
   });
 
+
+
   // Show toast function
   const showToast = useCallback((message, type = "info") => {
     setToast({ show: true, message, type });
@@ -209,6 +212,28 @@ const RecentOrdersPage = () => {
       .join(' ')
       .trim();
   }, []);
+
+
+  //print labels on basis of checked records
+  const handleExportSelected = useCallback(async (type, selectedItems) => {
+    if (!selectedItems.length) {
+      showToast("No items selected", "warning");
+      return;
+    }
+
+    if (type === "labels") {
+      try {
+        showToast(`Generating labels for ${selectedItems.length} order(s)...`, "info");
+        await generateShippingLabelsPDF(selectedItems, "Recent Orders");
+        showToast("Labels downloaded successfully", "success");
+      } catch (error) {
+        console.error("Label generation error:", error);
+        showToast("Failed to generate labels", "error");
+      }
+      return;
+    }
+
+  }, [showToast]);
 
   // Fetch total count
   const fetchTotalCount = useCallback(async () => {
@@ -1116,6 +1141,7 @@ const RecentOrdersPage = () => {
             actionButtons={actionButtons}
             onMarkDelivered={handleMarkAsDelivered}
             onRowClick={handleViewOrder}
+            onExportSelected={handleExportSelected}
           />
 
 

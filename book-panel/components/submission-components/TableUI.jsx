@@ -16,6 +16,7 @@ const TableUI = ({
   title = "Data Records",
   onRowClick = null,
   onMarkDelivered = null,
+  onExportSelected = null,
 }) => {
   console.log("TableUI data:", data);
   const [searchTerm, setSearchTerm] = useState("");
@@ -213,18 +214,37 @@ const TableUI = ({
       </div>
 
       {selectedRows.size > 0 && (
-        <div className="bg-blue-100 font-poppins dark:bg-blue-900 border border-blue-300 dark:border-blue-700 rounded p-1 px-3 m-4 flex items-center justify-between">
-          <span className="font-semibold">
-            {selectedRows.size} row(s) selected
-          </span>
+  <div className="bg-blue-100 font-poppins dark:bg-blue-900 border border-blue-300 dark:border-blue-700 rounded p-1 px-3 m-4 flex flex-wrap items-center justify-between gap-2">
+    <span className="font-semibold">
+      {selectedRows.size} row(s) selected
+    </span>
+    <div className="flex flex-wrap gap-2">
+      {onExportSelected && (
+        <>
           <button
-            onClick={() => setShowDeliveryModal(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold"
+            onClick={() => {
+              const selectedItems = filteredData.filter((item, idx) => {
+                const itemKey = idx + "-" + (item.parcelId || item["मोबाइल नंबर"] || idx);
+                return selectedRows.has(itemKey);
+              });
+              onExportSelected("labels", selectedItems);
+            }}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-semibold text-sm"
           >
-            Mark as Delivered
+             Export Labels
           </button>
-        </div>
+          
+        </>
       )}
+      <button
+        onClick={() => setShowDeliveryModal(true)}
+        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold text-sm"
+      >
+        Mark as Delivered
+      </button>
+    </div>
+  </div>
+)}
 
       {showDeliveryModal && (
         <div className="fixed inset-0 font-poppins bg-black bg-opacity-50 flex items-center justify-center z-50">
