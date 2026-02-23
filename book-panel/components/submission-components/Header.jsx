@@ -219,8 +219,8 @@ const Header = ({
   const loadFontsAndPreparePDF = async (data) => {
     try {
       // Load both Gujarati and Hindi fonts
-      const gujaratiFontPath = "/AnekGujarati-Regular.ttf";
-      const hindiFontPath = "/Karma-Regular.ttf";
+      const gujaratiFontPath = "/book-panel/AnekGujarati-Regular.ttf";
+      const hindiFontPath = "/book-panel/Karma-Regular.ttf";
 
       const [gujaratiFontResponse, hindiFontResponse] = await Promise.all([
         fetch(gujaratiFontPath),
