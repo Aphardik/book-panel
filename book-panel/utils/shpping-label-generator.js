@@ -4,9 +4,9 @@ export const generateShippingLabelsPDF = async (data, title) => {
   console.log(data, "data label");
   try {
     // Load fonts and logo
-    const gujaratiFontPath = "/AnekGujarati-Regular.ttf";
-    const hindiFontPath = "/Karma-Regular.ttf";
-    const logoPath = "/logo.png";
+    const gujaratiFontPath = "/book-panel/AnekGujarati-Regular.ttf";
+    const hindiFontPath = "/book-panel/Karma-Regular.ttf";
+    const logoPath = "/book-panel/logo.png";
 
     const [gujaratiFontResponse, hindiFontResponse, logoResponse] = await Promise.all([
       fetch(gujaratiFontPath),

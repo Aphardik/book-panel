@@ -581,8 +581,7 @@ const Dashboard = () => {
         </div>
 
         {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Distribution Pie Chart */}
+        {/* <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
             <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">
               Order Distribution
@@ -613,7 +612,6 @@ const Dashboard = () => {
             </ResponsiveContainer>
           </div>
 
-          {/* Status Distribution */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
             <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">
               Overall Status
@@ -640,10 +638,10 @@ const Dashboard = () => {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </div> */}
 
         {/* Performance Radar Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+        {/* <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
           <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">
             Performance Comparison Radar
           </h3>
@@ -670,10 +668,10 @@ const Dashboard = () => {
               <Tooltip />
             </RadarChart>
           </ResponsiveContainer>
-        </div>
+        </div> */}
 
         {/* Book Performance Comparison Bar Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+        {/* <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
           <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">
             Total vs Shipped by Book
           </h3>
@@ -703,7 +701,7 @@ const Dashboard = () => {
               />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </div> */}
 
 
       </div>
