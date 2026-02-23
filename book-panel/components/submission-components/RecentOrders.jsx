@@ -182,6 +182,7 @@ const RecentOrdersPage = () => {
     searchMobileMode: "include",
     dateFrom: "",
     dateTo: "",
+    afterOrderId: "",
   });
 
   // Show toast function
@@ -409,6 +410,17 @@ const RecentOrdersPage = () => {
       // Filter out deleted records
       if (item.isDelete === true) return false;
 
+      if (filters.afterOrderId) {
+        const parseOrderNum = (id) => {
+          if (!id || typeof id !== 'string') return 0;
+          const match = id.match(/(\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        };
+        const filterNum = parseOrderNum(filters.afterOrderId);
+        const itemNum = parseOrderNum(item.registrationId);
+        if (itemNum <= filterNum) return false;
+      }
+
       if (filters.deliveryType !== "all") {
         if (filters.deliveryType === "unassigned" && item.isShipped) return false;
         if (filters.deliveryType === "parcelId" && (!item.isShipped || item.deliveryType !== "parcelId")) return false;
@@ -486,6 +498,7 @@ const RecentOrdersPage = () => {
       searchMobileMode: "include",
       dateFrom: "",
       dateTo: "",
+      afterOrderId: "",
     });
   };
 
@@ -502,6 +515,7 @@ const RecentOrdersPage = () => {
     if (filters.searchMobile) count++;
     if (filters.dateFrom) count++;
     if (filters.dateTo) count++;
+    if (filters.afterOrderId) count++;
     return count;
   };
 
@@ -1043,6 +1057,21 @@ const RecentOrdersPage = () => {
                           />
                         </div>
                       </div>
+                    </div>
+
+                    {/* After Order ID */}
+                    <div>
+                      <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                        After Order ID
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. AP-3440"
+                        value={filters.afterOrderId}
+                        onChange={(e) => setFilters({ ...filters, afterOrderId: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Shows orders with ID greater than this value</p>
                     </div>
 
                     {/* Filter Results Summary */}
