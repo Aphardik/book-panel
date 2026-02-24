@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { FaEye, FaEdit, FaTrash, FaTimes, FaCheck, FaFilter, FaChevronLeft, FaChevronRight, FaEllipsisH } from "react-icons/fa";
@@ -7,17 +7,13 @@ import {
   getFirestore,
   doc,
   updateDoc,
-  deleteDoc,
 } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import Header from "./Header";
 import TableUI from "./TableUI";
-import { generateShippingLabelsPDF } from "@book-panel/utils/shpping-label-generator"; // adjust path as needed
-import { Suspense } from "react";
-import { useMemo } from "react";
+import { generateShippingLabelsPDF } from "@book-panel/utils/shpping-label-generator";
 
-
-// Firebase configuration
+// ✅ Firebase config — outside component (safe, uses NEXT_PUBLIC_ vars)
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -31,6 +27,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// ✅ FIXED: Static config moved OUTSIDE component — was causing hook order issues
 const BOOK_CONFIGS = {
   "sanskrutam-saralam": {
     hasBookQuantities: true,
@@ -49,10 +46,10 @@ const BOOK_CONFIGS = {
 };
 
 const DynamicBookOrderPage = () => {
+  // ✅ ALL hooks declared at the top — unconditional, fixed order
   const router = useRouter();
   const searchParams = useSearchParams();
   const bookName = searchParams.get("book");
-
   const { data: session, status } = useSession();
 
   const [data, setData] = useState([]);
@@ -78,12 +75,12 @@ const DynamicBookOrderPage = () => {
   const [pageSize, setPageSize] = useState(50);
   const [hasMore, setHasMore] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
-  const [allPages, setAllPages] = useState(new Map()); // Cache pages
+  const [allPages, setAllPages] = useState(new Map());
 
-  // Use refs for cursor tokens so they are ALWAYS current inside callbacks (no stale closure)
+  // Refs for cursor tokens — always current inside callbacks
   const lastDocIdRef = useRef(null);
   const lastTimestampRef = useRef(null);
-  const allPagesRef = useRef(new Map()); // mirror of allPages for synchronous cache reads
+  const allPagesRef = useRef(new Map());
   const pageSizeRef = useRef(50);
 
   // Filter states
@@ -107,29 +104,13 @@ const DynamicBookOrderPage = () => {
     afterOrderId: "",
   });
 
-  // Book configuration
-  // const bookConfigs = {
-  //   "sanskrutam-saralam": {
-  //     hasBookQuantities: true,
-  //     hasCopies: false,
-  //     bookQuantityFields: [
-  //       { key: "pratham_yatra", label: "Pratham Yatra" },
-  //       { key: "dwitiy_yatra", label: "Dwitiya Yatra" },
-  //       { key: "dhatunaamrup_shreni", label: "Dhatunaamrup Shreni" },
-  //     ],
-  //   },
-  //   default: {
-  //     hasBookQuantities: false,
-  //     hasCopies: true,
-  //     copiesField: "નકલ",
-  //   },
-  // };
-
+  // ✅ FIXED: useMemo for bookConfig — stable, no hook rule violation
   const bookConfig = useMemo(() => {
     const normalizedBookName = bookName?.toLowerCase().replace(/\s+/g, "-");
     return BOOK_CONFIGS[normalizedBookName] || BOOK_CONFIGS.default;
   }, [bookName]);
 
+  // ✅ FIXED: useMemo for tableColumns — depends only on bookConfig
   const tableColumns = useMemo(() => {
     const baseColumns = [
       { field: "timestamp", header: "Date & Time" },
@@ -165,15 +146,30 @@ const DynamicBookOrderPage = () => {
 
   const extraDataColumns = [];
 
-  // Apply all filters to data
-  const applyFilters = (dataArray) => {
+  // ✅ FIXED: useCallback for calculateTotalCopies
+  const calculateTotalCopies = useCallback((dataArray) => {
+    return dataArray.reduce((sum, item) => {
+      if (bookConfig.hasBookQuantities) {
+        const totalBookQty = bookConfig.bookQuantityFields.reduce((total, field) => {
+          return total + (parseInt(item.book_quantities?.[field.key] || 0, 10) || 0);
+        }, 0);
+        return sum + totalBookQty;
+      } else if (bookConfig.hasCopies) {
+        const copies = parseInt(item["નકલ"] || item["नकल"] || 1, 10);
+        return sum + (isNaN(copies) ? 1 : copies);
+      }
+      return sum;
+    }, 0);
+  }, [bookConfig]);
+
+  // ✅ FIXED: useCallback for applyFilters
+  const applyFilters = useCallback((dataArray) => {
     return dataArray.filter((item) => {
-      // Filter out deleted records
       if (item.isDelete === true) return false;
 
       if (filters.afterOrderId) {
         const parseOrderNum = (id) => {
-          if (!id || typeof id !== 'string') return 0;
+          if (!id || typeof id !== "string") return 0;
           const match = id.match(/(\d+)$/);
           return match ? parseInt(match[1], 10) : 0;
         };
@@ -185,10 +181,13 @@ const DynamicBookOrderPage = () => {
       if (filters.deliveryType !== "all") {
         if (filters.deliveryType === "unassigned" && item.hasParcel) return false;
         if (filters.deliveryType === "parcelId" && (!item.hasParcel || item.deliveryType !== "parcelId")) return false;
-        if (filters.deliveryType !== "unassigned" && filters.deliveryType !== "parcelId" && item.deliveryType !== filters.deliveryType) return false;
+        if (
+          filters.deliveryType !== "unassigned" &&
+          filters.deliveryType !== "parcelId" &&
+          item.deliveryType !== filters.deliveryType
+        ) return false;
       }
 
-      // New delivery status filter
       if (filters.deliveryStatus !== "all") {
         const hasDeliveredDate = item.deliveredDate && item.deliveredDate.trim() !== "";
         if (filters.deliveryStatus === "delivered" && !hasDeliveredDate) return false;
@@ -196,22 +195,21 @@ const DynamicBookOrderPage = () => {
       }
 
       const copies = bookConfig.hasBookQuantities
-        ? bookConfig.bookQuantityFields.reduce((total, field) => total + (parseInt(item.book_quantities?.[field.key] || 0, 10) || 0), 0)
+        ? bookConfig.bookQuantityFields.reduce(
+          (total, field) => total + (parseInt(item.book_quantities?.[field.key] || 0, 10) || 0),
+          0
+        )
         : parseInt(item["નકલ"] || item["नकल"] || 1, 10);
 
       if (filters.minCopies && copies < filters.minCopies) return false;
       if (filters.maxCopies && copies > filters.maxCopies) return false;
 
-      // Helper for text filters with multiple values and include/exclude mode
       const checkTextFilter = (itemValue, filterValue, mode) => {
         if (!filterValue) return true;
-
-        const values = filterValue.split(',').map(v => v.trim().toLowerCase()).filter(v => v);
+        const values = filterValue.split(",").map((v) => v.trim().toLowerCase()).filter((v) => v);
         if (values.length === 0) return true;
-
         const itemValLower = (itemValue || "").toLowerCase();
-        const match = values.some(val => itemValLower.includes(val));
-
+        const match = values.some((val) => itemValLower.includes(val));
         return mode === "exclude" ? !match : match;
       };
 
@@ -221,7 +219,6 @@ const DynamicBookOrderPage = () => {
 
       const fullName = (item["नाम"] + " " + (item["उपनाम"] || "")).trim();
       if (!checkTextFilter(fullName, filters.searchName, filters.searchNameMode)) return false;
-
       if (!checkTextFilter(item["मोबाइल नंबर"], filters.searchMobile, filters.searchMobileMode)) return false;
 
       if (filters.dateFrom) {
@@ -238,12 +235,13 @@ const DynamicBookOrderPage = () => {
 
       return true;
     });
-  };
+  }, [filters, bookConfig]);
 
-  const filteredData = applyFilters(data);
+  // ✅ FIXED: useMemo for filteredData
+  const filteredData = useMemo(() => applyFilters(data), [applyFilters, data]);
   const filteredRecords = filteredData.length;
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setFilters({
       deliveryType: "all",
       deliveryStatus: "all",
@@ -263,9 +261,9 @@ const DynamicBookOrderPage = () => {
       dateTo: "",
       afterOrderId: "",
     });
-  };
+  }, []);
 
-  const getActiveFilterCount = () => {
+  const getActiveFilterCount = useCallback(() => {
     let count = 0;
     if (filters.deliveryType !== "all") count++;
     if (filters.deliveryStatus !== "all") count++;
@@ -280,16 +278,15 @@ const DynamicBookOrderPage = () => {
     if (filters.dateTo) count++;
     if (filters.afterOrderId) count++;
     return count;
-  };
+  }, [filters]);
 
-  // Fetch total count
   const fetchTotalCount = useCallback(async () => {
     if (!bookName) return;
-
     try {
-      const normalizedBookName = bookName === "aapnoGyanvaibhavForm"
-        ? bookName
-        : bookName.toLowerCase().replace(/\s+/g, "-");
+      const normalizedBookName =
+        bookName === "aapnoGyanvaibhavForm"
+          ? bookName
+          : bookName.toLowerCase().replace(/\s+/g, "-");
 
       const response = await fetch(
         `https://getbookorderscount-fahifz22ha-uc.a.run.app?bookName=${encodeURIComponent(normalizedBookName)}`
@@ -297,236 +294,188 @@ const DynamicBookOrderPage = () => {
 
       if (response.ok) {
         const result = await response.json();
-        if (result.success) {
-          setTotalCount(result.totalCount);
-        }
+        if (result.success) setTotalCount(result.totalCount);
       }
     } catch (error) {
       console.error("Error fetching count:", error);
     }
   }, [bookName]);
 
-  // Load book orders with pagination
-  // NOTE: Uses refs for cursor tokens so this callback never goes stale
-  const loadBookOrderData = useCallback(async (page = 1, newPageSize) => {
-    const effectivePageSize = newPageSize ?? pageSizeRef.current;
-    try {
-      setLoading(true);
-      setError(null);
+  const loadBookOrderData = useCallback(
+    async (page = 1, newPageSize) => {
+      const effectivePageSize = newPageSize ?? pageSizeRef.current;
+      try {
+        setLoading(true);
+        setError(null);
 
-      if (!bookName) {
-        setError("No book name provided");
+        if (!bookName) {
+          setError("No book name provided");
+          setLoading(false);
+          return;
+        }
+
+        const cacheKey = `${page}-${effectivePageSize}`;
+        if (allPagesRef.current.has(cacheKey)) {
+          const cachedData = allPagesRef.current.get(cacheKey);
+          setData(cachedData.data);
+          lastDocIdRef.current = cachedData.lastDocId;
+          lastTimestampRef.current = cachedData.lastTimestamp;
+          setHasMore(cachedData.hasMore);
+          setTotalCopies(calculateTotalCopies(cachedData.data));
+          setLoading(false);
+          return;
+        }
+
+        const normalizedBookName =
+          bookName === "aapnoGyanvaibhavForm"
+            ? bookName
+            : bookName.toLowerCase().replace(/\s+/g, "-");
+
+        let url = `https://getbookorders-fahifz22ha-uc.a.run.app?bookName=${encodeURIComponent(normalizedBookName)}&pageSize=${effectivePageSize}`;
+
+        if (page > 1 && lastDocIdRef.current && lastTimestampRef.current) {
+          url += `&lastDocId=${lastDocIdRef.current}&lastTimestamp=${encodeURIComponent(lastTimestampRef.current)}`;
+        }
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          const formattedData = result.data.map((item) => ({
+            ...item,
+            timestamp: new Date(item.timestamp),
+          }));
+
+          lastDocIdRef.current = result.lastDocId;
+          lastTimestampRef.current = result.lastTimestamp;
+
+          const pageCache = new Map(allPagesRef.current);
+          pageCache.set(cacheKey, {
+            data: formattedData,
+            lastDocId: result.lastDocId,
+            lastTimestamp: result.lastTimestamp,
+            hasMore: result.hasMore,
+          });
+          allPagesRef.current = pageCache;
+          setAllPages(pageCache);
+
+          setData(formattedData);
+          setHasMore(result.hasMore);
+          setTotalCopies(calculateTotalCopies(formattedData));
+        } else {
+          setError(result.error || "No data received");
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        setError("Failed to load book orders: " + error.message);
+      } finally {
         setLoading(false);
-        return;
       }
+    },
+    [bookName, calculateTotalCopies]
+  );
 
-      // Check if page is already cached — use ref for instant, synchronous read
-      const cacheKey = `${page}-${effectivePageSize}`;
-      if (allPagesRef.current.has(cacheKey)) {
-        const cachedData = allPagesRef.current.get(cacheKey);
-        setData(cachedData.data);
-        // Restore cursor tokens for this page so next-page works correctly
-        lastDocIdRef.current = cachedData.lastDocId;
-        lastTimestampRef.current = cachedData.lastTimestamp;
-        setHasMore(cachedData.hasMore);
-        setTotalCopies(calculateTotalCopies(cachedData.data));
-        setLoading(false);
-        return;
-      }
-
-      const normalizedBookName = bookName === "aapnoGyanvaibhavForm"
-        ? bookName
-        : bookName.toLowerCase().replace(/\s+/g, "-");
-
-      let url = `https://getbookorders-fahifz22ha-uc.a.run.app?bookName=${encodeURIComponent(normalizedBookName)}&pageSize=${effectivePageSize}`;
-
-      // For pages after the first, use cursor tokens from refs (always current)
-      if (page > 1 && lastDocIdRef.current && lastTimestampRef.current) {
-        url += `&lastDocId=${lastDocIdRef.current}&lastTimestamp=${encodeURIComponent(lastTimestampRef.current)}`;
-      }
-
-      console.log("Loading orders for page:", page, "with pageSize:", effectivePageSize);
-
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log(result, "result");
-
-      if (result.success && result.data) {
-        const formattedData = result.data.map(item => ({
-          ...item,
-          timestamp: new Date(item.timestamp)
-        }));
-
-        // Update cursor refs immediately (synchronous, no stale read risk)
-        lastDocIdRef.current = result.lastDocId;
-        lastTimestampRef.current = result.lastTimestamp;
-
-        // Cache the page
-        const pageCache = new Map(allPagesRef.current);
-        pageCache.set(cacheKey, {
-          data: formattedData,
-          lastDocId: result.lastDocId,
-          lastTimestamp: result.lastTimestamp,
-          hasMore: result.hasMore,
-        });
-        allPagesRef.current = pageCache;
-        setAllPages(pageCache);
-
-        setData(formattedData);
-        setHasMore(result.hasMore);
-        setTotalCopies(calculateTotalCopies(formattedData));
-
-        console.log(`Loaded ${formattedData.length} orders for page ${page} with pageSize ${effectivePageSize}`);
-      } else {
-        setError(result.error || "No data received");
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      setError("Failed to load book orders: " + error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [bookName]); // Only bookName as dep — refs handle the rest
-
-  // Handle page size change
-  const handlePageSizeChange = (newPageSize) => {
+  const handlePageSizeChange = useCallback((newPageSize) => {
     pageSizeRef.current = newPageSize;
     setPageSize(newPageSize);
     setCurrentPage(1);
-    // Clear both ref and state cache when page size changes
     allPagesRef.current = new Map();
     setAllPages(new Map());
     lastDocIdRef.current = null;
     lastTimestampRef.current = null;
     loadBookOrderData(1, newPageSize);
-  };
+  }, [loadBookOrderData]);
 
-  // Generate page numbers for pagination
-  const generatePageNumbers = () => {
+  const generatePageNumbers = useCallback(() => {
     const totalPages = Math.ceil(totalCount / pageSize);
     const current = currentPage;
-    const delta = 2; // Number of pages to show on each side of current page
+    const delta = 2;
     const pages = [];
     const range = [];
 
     range.push(1);
-
     for (let i = current - delta; i <= current + delta; i++) {
-      if (i > 1 && i < totalPages) {
-        range.push(i);
-      }
+      if (i > 1 && i < totalPages) range.push(i);
     }
-
     range.push(totalPages);
 
-    // Remove duplicates and sort
     const uniqueRange = [...new Set(range)].sort((a, b) => a - b);
-
     let prev = 0;
     for (const page of uniqueRange) {
-      if (page - prev > 1) {
-        pages.push('...');
-      }
+      if (page - prev > 1) pages.push("...");
       pages.push(page);
       prev = page;
     }
 
     return pages;
-  };
+  }, [totalCount, pageSize, currentPage]);
 
-  // Navigation functions
-  const goToPage = (page) => {
-    const totalPages = Math.ceil(totalCount / pageSizeRef.current);
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-      loadBookOrderData(page);
-    }
-  };
+  const goToPage = useCallback(
+    (page) => {
+      const totalPages = Math.ceil(totalCount / pageSizeRef.current);
+      if (page >= 1 && page <= totalPages) {
+        setCurrentPage(page);
+        loadBookOrderData(page);
+      }
+    },
+    [totalCount, loadBookOrderData]
+  );
 
-  const goToNextPage = () => {
+  const goToNextPage = useCallback(() => {
     if (hasMore) {
       const nextPage = currentPage + 1;
       setCurrentPage(nextPage);
       loadBookOrderData(nextPage);
     }
-  };
+  }, [hasMore, currentPage, loadBookOrderData]);
 
-  const goToPreviousPage = () => {
+  const goToPreviousPage = useCallback(() => {
     if (currentPage > 1) {
       const prevPage = currentPage - 1;
       setCurrentPage(prevPage);
-      // loadBookOrderData handles cache lookup via allPagesRef
       loadBookOrderData(prevPage);
     }
-  };
+  }, [currentPage, loadBookOrderData]);
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/book-panel/login");
       return;
     }
-
     if (status === "authenticated" && bookName) {
       fetchTotalCount();
       loadBookOrderData(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, bookName]); // Intentionally exclude loadBookOrderData to prevent infinite loop
+  }, [status, bookName]);
 
-  if (status === "loading") {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center">
-        <img className="w-16 animate-pulse" src="/book-panel/logo.png" alt="" />
-        <span className="font-sans font-semibold text-lg mt-4">
-          Checking authentication...
-        </span>
-      </div>
-    );
-  }
-
-  if (status === "unauthenticated") {
-    return null;
-  }
-
+  // Handler functions
   const handleMarkAsDelivered = async (selectedItems, deliveryDate) => {
     try {
-      setUpdateStatus({
-        type: "loading",
-        message: "Marking orders as delivered...",
-      });
+      setUpdateStatus({ type: "loading", message: "Marking orders as delivered..." });
 
-      const updatePromises = selectedItems.map(async (item) => {
-        const orderDocRef = doc(db, "bookorders", item.id);
-        await updateDoc(orderDocRef, {
-          deliveredDate: deliveryDate,
-          lastUpdated: new Date(),
-        });
-      });
-
-      await Promise.all(updatePromises);
+      await Promise.all(
+        selectedItems.map((item) =>
+          updateDoc(doc(db, "bookorders", item.id), {
+            deliveredDate: deliveryDate,
+            lastUpdated: new Date(),
+          })
+        )
+      );
 
       const updatedData = data.map((item) => {
-        const matchedItem = selectedItems.find(
-          (selected) => selected.id === item.id
-        );
-        if (matchedItem) {
-          return {
-            ...item,
-            deliveredDate: deliveryDate,
-          };
-        }
-        return item;
+        const matched = selectedItems.find((s) => s.id === item.id);
+        return matched ? { ...item, deliveredDate: deliveryDate } : item;
       });
 
       setData(updatedData);
 
-      // Update cache
       const updatedCache = new Map(allPages);
       updatedCache.set(`${currentPage}-${pageSize}`, {
         ...updatedCache.get(`${currentPage}-${pageSize}`),
@@ -534,17 +483,11 @@ const DynamicBookOrderPage = () => {
       });
       setAllPages(updatedCache);
 
-      setUpdateStatus({
-        type: "success",
-        message: selectedItems.length + " order(s) marked as delivered successfully",
-      });
+      setUpdateStatus({ type: "success", message: `${selectedItems.length} order(s) marked as delivered successfully` });
       setTimeout(() => setUpdateStatus(null), 3000);
     } catch (error) {
       console.error("Error marking as delivered:", error);
-      setUpdateStatus({
-        type: "error",
-        message: "Failed to mark as delivered: " + error.message,
-      });
+      setUpdateStatus({ type: "error", message: "Failed to mark as delivered: " + error.message });
       setTimeout(() => setUpdateStatus(null), 5000);
     }
   };
@@ -575,14 +518,13 @@ const DynamicBookOrderPage = () => {
 
       await updateDoc(doc(db, "bookorders", itemToDelete.id), {
         isDelete: true,
-        deletedAt: new Date().getTime()
+        deletedAt: new Date().getTime(),
       });
 
       const newData = [...data];
       newData.splice(index, 1);
       setData(newData);
 
-      // Update cache and invalidate if needed
       const updatedCache = new Map(allPages);
       updatedCache.set(`${currentPage}-${pageSize}`, {
         ...updatedCache.get(`${currentPage}-${pageSize}`),
@@ -590,22 +532,13 @@ const DynamicBookOrderPage = () => {
       });
       setAllPages(updatedCache);
 
-      setUpdateStatus({
-        type: "success",
-        message: "Order moved to recycling bin",
-      });
+      setUpdateStatus({ type: "success", message: "Order moved to recycling bin" });
       setTimeout(() => setUpdateStatus(null), 3000);
 
-      // Reload if page is now empty
-      if (newData.length === 0 && currentPage > 1) {
-        goToPreviousPage();
-      }
+      if (newData.length === 0 && currentPage > 1) goToPreviousPage();
     } catch (error) {
       console.error("Error deleting order:", error);
-      setUpdateStatus({
-        type: "error",
-        message: "Failed to delete order: " + error.message,
-      });
+      setUpdateStatus({ type: "error", message: "Failed to delete order: " + error.message });
       setTimeout(() => setUpdateStatus(null), 5000);
     } finally {
       setDeleteModalOpen(false);
@@ -613,70 +546,63 @@ const DynamicBookOrderPage = () => {
     }
   };
 
-
-  //print labels on basis of checked records
-
-  const handleExportSelected = useCallback(async (type, selectedItems) => {
-    if (!selectedItems.length) return;
-
-    if (type === "labels") {
-      try {
-        setUpdateStatus({ type: "loading", message: `Generating labels for ${selectedItems.length} order(s)...` });
-        await generateShippingLabelsPDF(selectedItems, bookName || "Book Orders");
-        setUpdateStatus({ type: "success", message: "Labels downloaded successfully" });
-        setTimeout(() => setUpdateStatus(null), 3000);
-      } catch (error) {
-        console.error("Label generation error:", error);
-        setUpdateStatus({ type: "error", message: "Failed to generate labels" });
-        setTimeout(() => setUpdateStatus(null), 5000);
+  const handleExportSelected = useCallback(
+    async (type, selectedItems) => {
+      if (!selectedItems.length) return;
+      if (type === "labels") {
+        try {
+          setUpdateStatus({ type: "loading", message: `Generating labels for ${selectedItems.length} order(s)...` });
+          await generateShippingLabelsPDF(selectedItems, bookName || "Book Orders");
+          setUpdateStatus({ type: "success", message: "Labels downloaded successfully" });
+          setTimeout(() => setUpdateStatus(null), 3000);
+        } catch (error) {
+          console.error("Label generation error:", error);
+          setUpdateStatus({ type: "error", message: "Failed to generate labels" });
+          setTimeout(() => setUpdateStatus(null), 5000);
+        }
       }
-      return;
-    }
-
-
-  }, [bookName]);
+    },
+    [bookName]
+  );
 
   const handleSaveParcelId = async () => {
     try {
-      setUpdateStatus({
-        type: "loading",
-        message: "Saving delivery information...",
-      });
+      setUpdateStatus({ type: "loading", message: "Saving delivery information..." });
 
       const itemToUpdate = currentEditItem;
       const orderDocRef = doc(db, "bookorders", itemToUpdate.id);
 
-      // Determine which keys were used for mobile and address in the original data
-      const phoneKey = Object.keys(itemToUpdate).find(key => key === "मोबाइल नंबर") || "मोबाइल नंबर";
-      const addressKey = Object.keys(itemToUpdate).find(key =>
-        ["એડ્રેસ/एड्रेस", "एड्रेस", "એડ્રેસ"].includes(key)
-      ) || "एड्रेस";
+      const phoneKey =
+        Object.keys(itemToUpdate).find((key) => key === "मोबाइल नंबर") || "मोबाइल नंबर";
+      const addressKey =
+        Object.keys(itemToUpdate).find((key) =>
+          ["એડ્રેસ/एड्रेस", "एड्रेस", "એડ્રેસ"].includes(key)
+        ) || "एड्रेस";
 
       await updateDoc(orderDocRef, {
         parcelId: deliveryType === "handtohand" ? "On Hand" : parcelId.trim(),
-        deliveryType: deliveryType,
+        deliveryType,
         hasParcel: true,
         lastUpdated: new Date(),
         [phoneKey]: editPhone,
-        [addressKey]: editAddress
+        [addressKey]: editAddress,
       });
 
       const newData = [...data];
       newData[currentEditItem.index] = {
         ...currentEditItem,
         parcelId: deliveryType === "handtohand" ? "On Hand" : parcelId.trim(),
-        deliveryType: deliveryType,
+        deliveryType,
         hasParcel: true,
         lastUpdated: new Date(),
         phone: editPhone,
         address: editAddress,
         [phoneKey]: editPhone,
-        [addressKey]: editAddress
+        [addressKey]: editAddress,
       };
       newData.sort((a, b) => b.timestamp - a.timestamp);
       setData(newData);
 
-      // Update cache
       const updatedCache = new Map(allPages);
       updatedCache.set(`${currentPage}-${pageSize}`, {
         ...updatedCache.get(`${currentPage}-${pageSize}`),
@@ -684,19 +610,12 @@ const DynamicBookOrderPage = () => {
       });
       setAllPages(updatedCache);
 
-      setUpdateStatus({
-        type: "success",
-        message: "Delivery information saved successfully",
-      });
+      setUpdateStatus({ type: "success", message: "Delivery information saved successfully" });
       setTimeout(() => setUpdateStatus(null), 3000);
-
       setEditModalOpen(false);
     } catch (error) {
       console.error("Error saving delivery information:", error);
-      setUpdateStatus({
-        type: "error",
-        message: "Failed to save: " + error.message,
-      });
+      setUpdateStatus({ type: "error", message: "Failed to save: " + error.message });
       setTimeout(() => setUpdateStatus(null), 5000);
     }
   };
@@ -707,20 +626,21 @@ const DynamicBookOrderPage = () => {
     let copiesInfo = "";
     if (bookConfig.hasBookQuantities) {
       bookConfig.bookQuantityFields.forEach((field) => {
-        const qty = currentViewItem.book_quantities?.[field.key] || 0;
-        copiesInfo += field.label + ": " + qty + "\n";
+        copiesInfo += `${field.label}: ${currentViewItem.book_quantities?.[field.key] || 0}\n`;
       });
     } else if (bookConfig.hasCopies) {
-      copiesInfo = "Copies: " + (currentViewItem["નકલ"] || currentViewItem["नकल"] || 1) + "\n";
+      copiesInfo = `Copies: ${currentViewItem["નકલ"] || currentViewItem["नकल"] || 1}\n`;
     }
 
-    const details = "\nName: " + currentViewItem["नाम"] + " " + (currentViewItem["उपनाम"] || "") + "\n" +
-      "Mobile: " + currentViewItem["मोबाइल नंबर"] + "\n" +
-      "City: " + currentViewItem["शहर"] + "\n" +
-      "Address: " + currentViewItem["એડ્રેસ"] + "\n" +
-      "Pincode: " + currentViewItem["पिनकोड"] + "\n" +
-      "State: " + currentViewItem["राज्य"] + "\n" +
-      copiesInfo + "Parcel ID: " + (currentViewItem.parcelId || "Not Assigned");
+    const details =
+      `\nName: ${currentViewItem["नाम"]} ${currentViewItem["उपनाम"] || ""}\n` +
+      `Mobile: ${currentViewItem["मोबाइल नंबर"]}\n` +
+      `City: ${currentViewItem["शहर"]}\n` +
+      `Address: ${currentViewItem["એડ્રેસ"]}\n` +
+      `Pincode: ${currentViewItem["पिनकोड"]}\n` +
+      `State: ${currentViewItem["राज्य"]}\n` +
+      copiesInfo +
+      `Parcel ID: ${currentViewItem.parcelId || "Not Assigned"}`;
 
     navigator.clipboard
       .writeText(details.trim())
@@ -728,37 +648,20 @@ const DynamicBookOrderPage = () => {
         setCopyStatus("Copied!");
         setTimeout(() => setCopyStatus(null), 2000);
       })
-      .catch((err) => {
-        console.error("Failed to copy: ", err);
+      .catch(() => {
         setCopyStatus("Failed to copy");
         setTimeout(() => setCopyStatus(null), 2000);
       });
   };
 
-  const calculateTotalCopies = (dataArray) => {
-    return dataArray.reduce((sum, item) => {
-      if (bookConfig.hasBookQuantities) {
-        const totalBookQty = bookConfig.bookQuantityFields.reduce((total, field) => {
-          return total + (parseInt(item.book_quantities?.[field.key] || 0, 10) || 0);
-        }, 0);
-        return sum + totalBookQty;
-      } else if (bookConfig.hasCopies) {
-        const copies = parseInt(item["નકલ"] || item["नकल"] || 1, 10);
-        return sum + (isNaN(copies) ? 1 : copies);
-      }
-      return sum;
-    }, 0);
-  };
-
-  const prepareDataWithActions = () => {
-    return filteredData.map((item, index) => {
+  const prepareDataWithActions = useCallback(() => {
+    return filteredData.map((item) => {
       const processedItem = {
         ...item,
         नाम: item["नाम"] + " " + (item["उपनाम"] || ""),
         timestamp: item.timestamp,
         originalIndex: data.indexOf(item),
         registrationId: item.registrationId || "N/A",
-
       };
 
       if (bookConfig.hasBookQuantities && item.book_quantities) {
@@ -796,18 +699,28 @@ const DynamicBookOrderPage = () => {
 
       return processedItem;
     });
-  };
+  }, [filteredData, data, bookConfig]);
 
+  // ✅ Early returns AFTER all hooks
+  if (status === "loading") {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center">
+        <img className="w-16 animate-pulse" src="/book-panel/logo.png" alt="" />
+        <span className="font-sans font-semibold text-lg mt-4">Checking authentication...</span>
+      </div>
+    );
+  }
 
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="p-8 mt-20">
           <div className="max-w-2xl mx-auto bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
-            <h2 className="text-xl font-bold text-red-800 dark:text-red-400 mb-2">
-              Error
-            </h2>
+            <h2 className="text-xl font-bold text-red-800 dark:text-red-400 mb-2">Error</h2>
             <p className="text-red-600 dark:text-red-300">{error}</p>
             <button
               onClick={() => router.back()}
@@ -835,38 +748,34 @@ const DynamicBookOrderPage = () => {
   return (
     <div className="min-h-screen flex flex-col items-center font-anek bg-background text-foreground transition-colors duration-200">
       <div className="flex-1 transition-all duration-300 w-full">
-        <Suspense fallback={null}>
-          <Header
-            totalCopies={calculateTotalCopies(filteredData)}
-            filterDeliveryType={filters.deliveryType}
-            setFilterDeliveryType={(value) => setFilters({ ...filters, deliveryType: value })}
-            filteredRecords={filteredRecords}
-            data={filteredData}
-            title={bookName + " Book Orders"}
-            onFilterClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
-            activeFilterCount={getActiveFilterCount()}
-          />
-        </Suspense>
+        <Header
+          totalCopies={calculateTotalCopies(filteredData)}
+          filterDeliveryType={filters.deliveryType}
+          setFilterDeliveryType={(value) => setFilters({ ...filters, deliveryType: value })}
+          filteredRecords={filteredRecords}
+          data={filteredData}
+          title={bookName + " Book Orders"}
+          onFilterClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
+          activeFilterCount={getActiveFilterCount()}
+        />
+
         {/* Status notification */}
         {updateStatus && (
           <div
-            className={"fixed top-20 right-4 p-3 rounded shadow-md z-50 " + (
-              updateStatus.type === "success"
+            className={
+              "fixed top-20 right-4 p-3 rounded shadow-md z-50 " +
+              (updateStatus.type === "success"
                 ? "bg-green-700 text-green-100"
                 : updateStatus.type === "error"
                   ? "bg-red-800 text-red-200"
-                  : "bg-blue-100 text-blue-800"
-            )}
+                  : "bg-blue-100 text-blue-800")
+            }
           >
             {updateStatus.type === "loading" && (
               <div className="animate-spin h-4 w-4 border-2 border-blue-500 rounded-full border-t-transparent inline-block mr-2"></div>
             )}
-            {updateStatus.type === "success" && (
-              <FaCheck className="inline-block mr-2" size={14} />
-            )}
-            {updateStatus.type === "error" && (
-              <FaTimes className="inline-block mr-2" size={14} />
-            )}
+            {updateStatus.type === "success" && <FaCheck className="inline-block mr-2" size={14} />}
+            {updateStatus.type === "error" && <FaTimes className="inline-block mr-2" size={14} />}
             {updateStatus.message}
           </div>
         )}
@@ -879,16 +788,11 @@ const DynamicBookOrderPage = () => {
                 Total Orders: <span className="text-blue-600 dark:text-blue-400">{totalCount}</span>
               </span>
               <span className="text-gray-500 dark:text-gray-400 hidden sm:inline">|</span>
-              <span>
-                Page {currentPage} of {totalPages || 1}
-              </span>
+              <span>Page {currentPage} of {totalPages || 1}</span>
               <span className="text-gray-500 dark:text-gray-400 hidden sm:inline">|</span>
-              <span>
-                Showing {data.length} orders
-              </span>
+              <span>Showing {data.length} orders</span>
             </div>
 
-            {/* Page Size Dropdown */}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <label htmlFor="pageSize" className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -908,24 +812,23 @@ const DynamicBookOrderPage = () => {
                 </select>
               </div>
 
-              {/* Pagination Controls */}
               <div className="flex items-center gap-1">
                 <button
                   onClick={goToPreviousPage}
                   disabled={currentPage === 1}
-                  className={"p-2 rounded flex items-center gap-1 transition-colors text-sm font-medium " + (
-                    currentPage === 1
-                      ? "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 text-white"
-                  )}
+                  className={
+                    "p-2 rounded flex items-center gap-1 transition-colors text-sm font-medium " +
+                    (currentPage === 1
+                      ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700 text-white")
+                  }
                 >
                   <FaChevronLeft size={12} />
                 </button>
 
-                {/* Page Numbers */}
                 {pageNumbers.map((page, index) => (
                   <React.Fragment key={index}>
-                    {page === '...' ? (
+                    {page === "..." ? (
                       <span className="px-3 py-2 text-gray-500 dark:text-gray-400">
                         <FaEllipsisH size={12} />
                       </span>
@@ -933,8 +836,8 @@ const DynamicBookOrderPage = () => {
                       <button
                         onClick={() => goToPage(page)}
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${currentPage === page
-                          ? "bg-blue-600 text-white"
-                          : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                            ? "bg-blue-600 text-white"
+                            : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                           }`}
                       >
                         {page}
@@ -946,11 +849,12 @@ const DynamicBookOrderPage = () => {
                 <button
                   onClick={goToNextPage}
                   disabled={!hasMore}
-                  className={"p-2 rounded flex items-center gap-1 transition-colors text-sm font-medium " + (
-                    !hasMore
-                      ? "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 text-white"
-                  )}
+                  className={
+                    "p-2 rounded flex items-center gap-1 transition-colors text-sm font-medium " +
+                    (!hasMore
+                      ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700 text-white")
+                  }
                 >
                   <FaChevronRight size={12} />
                 </button>
@@ -966,10 +870,12 @@ const DynamicBookOrderPage = () => {
               className="fixed inset-0 bg-black/50 font-sans bg-opacity-50 z-40 transition-opacity duration-300"
               onClick={() => setIsFilterPanelOpen(false)}
             />
-
-            <div className={"fixed top-0 right-0 h-full w-full sm:w-96 bg-white dark:bg-gray-800 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out " + (
-              isFilterPanelOpen ? 'translate-x-0' : 'translate-x-full'
-            )}>
+            <div
+              className={
+                "fixed top-0 right-0 h-full w-full sm:w-96 bg-white dark:bg-gray-800 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out " +
+                (isFilterPanelOpen ? "translate-x-0" : "translate-x-full")
+              }
+            >
               <div className="flex flex-col font-mono h-full">
                 <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-2">
@@ -1007,7 +913,6 @@ const DynamicBookOrderPage = () => {
                     </select>
                   </div>
 
-                  {/* New Delivery Status Filter */}
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                       Delivery Status
@@ -1023,41 +928,34 @@ const DynamicBookOrderPage = () => {
                     </select>
                   </div>
 
-                  {/* Copies Range */}
                   <div>
                     <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                       Copies Range
                     </label>
                     <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <input
-                          type="number"
-                          placeholder="Min"
-                          min="0"
-                          value={filters.minCopies || ""}
-                          onChange={(e) => setFilters({ ...filters, minCopies: parseInt(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <input
-                          type="number"
-                          placeholder="Max"
-                          min="0"
-                          value={filters.maxCopies}
-                          onChange={(e) => setFilters({ ...filters, maxCopies: e.target.value ? parseInt(e.target.value) : "" })}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
+                      <input
+                        type="number"
+                        placeholder="Min"
+                        min="0"
+                        value={filters.minCopies || ""}
+                        onChange={(e) => setFilters({ ...filters, minCopies: parseInt(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Max"
+                        min="0"
+                        value={filters.maxCopies}
+                        onChange={(e) => setFilters({ ...filters, maxCopies: e.target.value ? parseInt(e.target.value) : "" })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
                     </div>
                   </div>
 
                   {/* Name Search */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Search by Name
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Search by Name</label>
                       <select
                         value={filters.searchNameMode}
                         onChange={(e) => setFilters({ ...filters, searchNameMode: e.target.value })}
@@ -1080,9 +978,7 @@ const DynamicBookOrderPage = () => {
                   {/* Mobile Search */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Search by Mobile
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Search by Mobile</label>
                       <select
                         value={filters.searchMobileMode}
                         onChange={(e) => setFilters({ ...filters, searchMobileMode: e.target.value })}
@@ -1105,9 +1001,7 @@ const DynamicBookOrderPage = () => {
                   {/* City */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        City
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">City</label>
                       <select
                         value={filters.cityMode}
                         onChange={(e) => setFilters({ ...filters, cityMode: e.target.value })}
@@ -1130,9 +1024,7 @@ const DynamicBookOrderPage = () => {
                   {/* State */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        State
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">State</label>
                       <select
                         value={filters.stateMode}
                         onChange={(e) => setFilters({ ...filters, stateMode: e.target.value })}
@@ -1155,9 +1047,7 @@ const DynamicBookOrderPage = () => {
                   {/* Pincode */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Pincode
-                      </label>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Pincode</label>
                       <select
                         value={filters.pincodeMode}
                         onChange={(e) => setFilters({ ...filters, pincodeMode: e.target.value })}
@@ -1179,9 +1069,7 @@ const DynamicBookOrderPage = () => {
 
                   {/* Date Range */}
                   <div>
-                    <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                      Date Range
-                    </label>
+                    <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">Date Range</label>
                     <div className="space-y-2">
                       <div>
                         <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">From</label>
@@ -1206,9 +1094,7 @@ const DynamicBookOrderPage = () => {
 
                   {/* After Order ID */}
                   <div>
-                    <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                      After Order ID
-                    </label>
+                    <label className="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">After Order ID</label>
                     <input
                       type="text"
                       placeholder="e.g. AP-3440"
@@ -1269,10 +1155,7 @@ const DynamicBookOrderPage = () => {
             <div className="rounded-sm font-anek p-6 w-full max-w-md animate-scaleIn bg-card shadow-lg border border-border">
               <div className="flex justify-between items-center mb-4 border-b border-border pb-2">
                 <h2 className="text-xl font-bold text-foreground">Edit Order Information</h2>
-                <button
-                  onClick={() => setEditModalOpen(false)}
-                  className="p-1 rounded-full hover:bg-muted"
-                >
+                <button onClick={() => setEditModalOpen(false)} className="p-1 rounded-full hover:bg-muted">
                   <FaTimes size={20} />
                 </button>
               </div>
@@ -1297,10 +1180,7 @@ const DynamicBookOrderPage = () => {
                   />
                 </div>
                 <div className="border-t pt-4">
-                  <label
-                    className="block text-sm font-bold mb-2 text-foreground"
-                    htmlFor="deliveryType"
-                  >
+                  <label className="block text-sm font-bold mb-2 text-foreground" htmlFor="deliveryType">
                     Delivery Type
                   </label>
                   <select
@@ -1317,13 +1197,8 @@ const DynamicBookOrderPage = () => {
 
                 {deliveryType !== "handtohand" && (
                   <div className="mb-4">
-                    <label
-                      className="block text-sm font-bold mb-2 text-foreground"
-                      htmlFor="parcelId"
-                    >
-                      {deliveryType === "parcelId"
-                        ? "Parcel Tracking ID"
-                        : "Courier ID"}
+                    <label className="block text-sm font-bold mb-2 text-foreground" htmlFor="parcelId">
+                      {deliveryType === "parcelId" ? "Parcel Tracking ID" : "Courier ID"}
                     </label>
                     <input
                       id="parcelId"
@@ -1331,11 +1206,7 @@ const DynamicBookOrderPage = () => {
                       value={parcelId}
                       onChange={(e) => setParcelId(e.target.value)}
                       className="bg-background text-foreground shadow appearance-none border border-border placeholder:text-sm rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline"
-                      placeholder={
-                        deliveryType === "parcelId"
-                          ? "Enter parcel tracking ID"
-                          : "Enter courier ID"
-                      }
+                      placeholder={deliveryType === "parcelId" ? "Enter parcel tracking ID" : "Enter courier ID"}
                     />
                   </div>
                 )}
@@ -1364,11 +1235,8 @@ const DynamicBookOrderPage = () => {
           <div className="fixed inset-0 bg-black/50 text-sm flex font-anek items-center justify-center z-50 animate-fadeIn">
             <div className="bg-card rounded-lg p-6 w-full max-w-md animate-scaleIn border border-border">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-foreground"> {currentViewItem?.registrationId}</h2>
-                <button
-                  onClick={() => setViewModalOpen(false)}
-                  className="p-1 rounded-full hover:bg-muted"
-                >
+                <h2 className="text-xl font-bold text-foreground">{currentViewItem?.registrationId}</h2>
+                <button onClick={() => setViewModalOpen(false)} className="p-1 rounded-full hover:bg-muted">
                   <FaTimes size={20} />
                 </button>
               </div>
@@ -1378,15 +1246,12 @@ const DynamicBookOrderPage = () => {
                   <div className="col-span-3">
                     <p className="text-sm text-muted-foreground">Name</p>
                     <p className="font-medium text-foreground">
-                      {currentViewItem?.["नाम"]}{" "}
-                      {currentViewItem?.["उपनाम"] || ""}
+                      {currentViewItem?.["नाम"]} {currentViewItem?.["उपनाम"] || ""}
                     </p>
                   </div>
                   <div className="col-span-3">
                     <p className="text-sm text-muted-foreground">Mobile Number</p>
-                    <p className="font-medium text-foreground">
-                      {currentViewItem?.["मोबाइल नंबर"]}
-                    </p>
+                    <p className="font-medium text-foreground">{currentViewItem?.["मोबाइल नंबर"]}</p>
                   </div>
                   <div className="col-span-3">
                     <p className="text-sm text-muted-foreground">City</p>
@@ -1410,7 +1275,9 @@ const DynamicBookOrderPage = () => {
                   {bookConfig.hasCopies && (
                     <div className="col-span-3">
                       <p className="text-sm text-muted-foreground">Copies</p>
-                      <p className="font-medium text-foreground">{currentViewItem?.["નકલ"] || currentViewItem?.["नकल"]}</p>
+                      <p className="font-medium text-foreground">
+                        {currentViewItem?.["નકલ"] || currentViewItem?.["नकल"]}
+                      </p>
                     </div>
                   )}
 
@@ -1420,9 +1287,7 @@ const DynamicBookOrderPage = () => {
                   </div>
                   <div className="col-span-1">
                     <p className="text-sm text-muted-foreground">Pincode</p>
-                    <p className="font-medium text-foreground">
-                      {currentViewItem?.["पिनकोड"]}
-                    </p>
+                    <p className="font-medium text-foreground">{currentViewItem?.["पिनकोड"]}</p>
                   </div>
                   <div className="col-span-2">
                     <p className="text-sm text-muted-foreground">State</p>
@@ -1432,9 +1297,7 @@ const DynamicBookOrderPage = () => {
                     <p className="text-sm text-muted-foreground">Parcel ID</p>
                     <p className="font-medium text-foreground">
                       {currentViewItem?.parcelId ? (
-                        <span className="text-xs font-medium py-1 px-2 rounded-sm">
-                          {currentViewItem.parcelId}
-                        </span>
+                        <span className="text-xs font-medium py-1 px-2 rounded-sm">{currentViewItem.parcelId}</span>
                       ) : (
                         <span>Not assigned</span>
                       )}
@@ -1452,9 +1315,7 @@ const DynamicBookOrderPage = () => {
 
               <div className="flex justify-end items-center gap-2">
                 <div className="flex-grow">
-                  {copyStatus && (
-                    <span className="text-sm text-green-600">{copyStatus}</span>
-                  )}
+                  {copyStatus && <span className="text-sm text-green-600">{copyStatus}</span>}
                 </div>
                 <button
                   onClick={handleCopyDetails}
@@ -1479,21 +1340,13 @@ const DynamicBookOrderPage = () => {
             <div className="bg-card border border-border rounded-sm font-anek p-6 w-full max-w-md animate-scaleIn">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold text-foreground">Confirm Deletion</h2>
-                <button
-                  onClick={() => setDeleteModalOpen(false)}
-                  className="p-1 rounded-full hover:bg-muted"
-                >
+                <button onClick={() => setDeleteModalOpen(false)} className="p-1 rounded-full hover:bg-muted">
                   <FaTimes size={20} />
                 </button>
               </div>
-
               <div className="mb-6">
-                <p className="text-foreground">
-                  Are you sure you want to delete this order? This action cannot
-                  be undone.
-                </p>
+                <p className="text-foreground">Are you sure you want to delete this order? This action cannot be undone.</p>
               </div>
-
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setDeleteModalOpen(false)}
@@ -1518,45 +1371,19 @@ const DynamicBookOrderPage = () => {
           from { opacity: 0; }
           to { opacity: 1; }
         }
-        
         @keyframes scaleIn {
-          from { 
-            opacity: 0;
-            transform: scale(0.95);
-          }
-          to { 
-            opacity: 1;
-            transform: scale(1);
-          }
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
         }
-        
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-        
-        .animate-scaleIn {
-          animation: scaleIn 0.2s ease-out;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: hsl(var(--muted));
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: hsl(var(--muted-foreground) / 0.3);
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: hsl(var(--muted-foreground) / 0.5);
-        }
+        .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+        .animate-scaleIn { animation: scaleIn 0.2s ease-out; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: hsl(var(--muted)); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.3); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
       `}</style>
     </div>
   );
 };
 
 export default DynamicBookOrderPage;
-
-
