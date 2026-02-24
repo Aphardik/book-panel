@@ -73,7 +73,7 @@ const LoginForm: React.FC = () => {
             <div className="absolute top-[40%] left-[40%] w-[30%] h-[30%] bg-indigo-200/30 blur-[100px] rounded-full pointer-events-none" />
 
             {/* Main card */}
-            <div className="relative z-10 w-full max-w-4xl bg-white/70 backdrop-blur-2xl border border-white/60 rounded-2xl shadow-sm overflow-hidden flex">
+            <div className="relative z-10 w-full max-w-4xl bg-white/70 backdrop-blur-2xl border border-white/60 rounded-sm shadow-sm overflow-hidden flex">
 
                 {/* Left column — decorative */}
                 <div className="hidden md:flex w-1/2 relative flex-col justify-between p-10 overflow-hidden">
@@ -86,26 +86,23 @@ const LoginForm: React.FC = () => {
 
                     <div className="relative flex flex-col gap- items-center justify-center z-10">
                         <Image src="/book-panel/logo.png" alt="logo" width={150} height={150} />
-                        <p className="text-white/60 text-xs font-semibold tracking-widest uppercase mb-2">Adhyatm Parivar</p>
                         <h2 className="text-white text-center text-3xl font-bold leading-tight mb-4">
                             Welcome to Book Panel
                         </h2>
-                        <p className="text-white/70 text-sm leading-relaxed">
-                            Access the Panel basis of your Role.
-                        </p>
+
                     </div>
                 </div>
 
                 {/* Right column — form */}
-                <div className="w-full md:w-1/2 p-10 flex flex-col justify-center">
-                    <div className="mb-8">
+                <div className="w-full md:w-1/2 p-12 flex flex-col justify-center">
+                    {/* <div className="mb-8">
                         <h1 className="text-2xl font-bold text-slate-800 mb-1">Get Started Now</h1>
                         <p className="text-slate-400 text-sm">Please log in to your account to continue.</p>
-                    </div>
+                    </div> */}
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {error && (
-                            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
+                            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-sm text-sm">
                                 {error}
                             </div>
                         )}
@@ -120,7 +117,7 @@ const LoginForm: React.FC = () => {
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 text-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 outline-none transition-all placeholder-slate-300 shadow-sm"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 text-slate-800 rounded-sm text-sm focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 outline-none transition-all placeholder-slate-300 shadow-sm"
                                     placeholder="workemail@gmail.com"
                                     required
                                     disabled={isLoading}
@@ -140,7 +137,7 @@ const LoginForm: React.FC = () => {
                                     type={showPassword ? "text" : "password"}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 text-slate-800 rounded-lg text-sm focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 outline-none transition-all placeholder-slate-300 shadow-sm"
+                                    className="w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 text-slate-800 rounded-sm text-sm focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 outline-none transition-all placeholder-slate-300 shadow-sm"
                                     placeholder="••••••••"
                                     required
                                     disabled={isLoading}
@@ -160,7 +157,7 @@ const LoginForm: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        {/* <div className="flex items-center gap-2">
                             <input
                                 type="checkbox"
                                 id="terms"
@@ -169,12 +166,12 @@ const LoginForm: React.FC = () => {
                             <label htmlFor="terms" className="text-xs text-slate-500">
                                 I agree to the Terms & Privacy
                             </label>
-                        </div>
+                        </div> */}
 
                         <button
                             type="submit"
                             disabled={isLoading || !email || !password}
-                            className="w-full bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 text-white py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-violet-300/50 hover:shadow-md"
+                            className="w-full bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-500 hover:to-blue-500 text-white py-2.5 px-4 rounded-sm font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-violet-300/50 hover:shadow-md"
                         >
                             {isLoading ? (
                                 <>
