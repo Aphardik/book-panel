@@ -30,6 +30,24 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Book configuration
+const bookConfigs = {
+  "sanskrutam-saralam": {
+    hasBookQuantities: true,
+    hasCopies: false,
+    bookQuantityFields: [
+      { key: "pratham_yatra", label: "Pratham Yatra" },
+      { key: "dwitiy_yatra", label: "Dwitiya Yatra" },
+      { key: "dhatunaamrup_shreni", label: "Dhatunaamrup Shreni" },
+    ],
+  },
+  default: {
+    hasBookQuantities: false,
+    hasCopies: true,
+    copiesField: "નકલ",
+  },
+};
+
 const DynamicBookOrderPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -89,23 +107,7 @@ const DynamicBookOrderPage = () => {
     afterOrderId: "",
   });
 
-  // Book configuration
-  const bookConfigs = {
-    "sanskrutam-saralam": {
-      hasBookQuantities: true,
-      hasCopies: false,
-      bookQuantityFields: [
-        { key: "pratham_yatra", label: "Pratham Yatra" },
-        { key: "dwitiy_yatra", label: "Dwitiya Yatra" },
-        { key: "dhatunaamrup_shreni", label: "Dhatunaamrup Shreni" },
-      ],
-    },
-    default: {
-      hasBookQuantities: false,
-      hasCopies: true,
-      copiesField: "નકલ",
-    },
-  };
+
 
   const getBookConfig = () => {
     const normalizedBookName = bookName?.toLowerCase().replace(/\s+/g, "-");
