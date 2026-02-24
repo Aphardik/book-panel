@@ -14,6 +14,7 @@ import Header from "./Header";
 import TableUI from "./TableUI";
 import { generateShippingLabelsPDF } from "@book-panel/utils/shpping-label-generator"; // adjust path as needed
 import { Suspense } from "react";
+import { useMemo } from "react";
 
 
 // Firebase configuration
@@ -30,8 +31,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Book configuration
-const bookConfigs = {
+const BOOK_CONFIGS = {
   "sanskrutam-saralam": {
     hasBookQuantities: true,
     hasCopies: false,
@@ -107,17 +107,30 @@ const DynamicBookOrderPage = () => {
     afterOrderId: "",
   });
 
+  // Book configuration
+  // const bookConfigs = {
+  //   "sanskrutam-saralam": {
+  //     hasBookQuantities: true,
+  //     hasCopies: false,
+  //     bookQuantityFields: [
+  //       { key: "pratham_yatra", label: "Pratham Yatra" },
+  //       { key: "dwitiy_yatra", label: "Dwitiya Yatra" },
+  //       { key: "dhatunaamrup_shreni", label: "Dhatunaamrup Shreni" },
+  //     ],
+  //   },
+  //   default: {
+  //     hasBookQuantities: false,
+  //     hasCopies: true,
+  //     copiesField: "નકલ",
+  //   },
+  // };
 
-
-  const getBookConfig = () => {
+  const bookConfig = useMemo(() => {
     const normalizedBookName = bookName?.toLowerCase().replace(/\s+/g, "-");
-    return bookConfigs[normalizedBookName] || bookConfigs.default;
-  };
+    return BOOK_CONFIGS[normalizedBookName] || BOOK_CONFIGS.default;
+  }, [bookName]);
 
-  const bookConfig = getBookConfig();
-
-  // Dynamic table columns
-  const getTableColumns = () => {
+  const tableColumns = useMemo(() => {
     const baseColumns = [
       { field: "timestamp", header: "Date & Time" },
       { field: "registrationId", header: "Order Id" },
@@ -148,9 +161,8 @@ const DynamicBookOrderPage = () => {
     );
 
     return baseColumns;
-  };
+  }, [bookConfig]);
 
-  const tableColumns = getTableColumns();
   const extraDataColumns = [];
 
   // Apply all filters to data
