@@ -13,6 +13,7 @@ import { initializeApp } from "firebase/app";
 import Header from "./Header";
 import TableUI from "./TableUI";
 import { generateShippingLabelsPDF } from "@book-panel/utils/shpping-label-generator"; // adjust path as needed
+import { Suspense } from "react";
 
 
 // Firebase configuration
@@ -820,17 +821,18 @@ const DynamicBookOrderPage = () => {
   return (
     <div className="min-h-screen flex flex-col items-center font-anek bg-background text-foreground transition-colors duration-200">
       <div className="flex-1 transition-all duration-300 w-full">
-        <Header
-          totalCopies={calculateTotalCopies(filteredData)}
-          filterDeliveryType={filters.deliveryType}
-          setFilterDeliveryType={(value) => setFilters({ ...filters, deliveryType: value })}
-          filteredRecords={filteredRecords}
-          data={filteredData}
-          title={bookName + " Book Orders"}
-          onFilterClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
-          activeFilterCount={getActiveFilterCount()}
-        />
-
+        <Suspense fallback={null}>
+          <Header
+            totalCopies={calculateTotalCopies(filteredData)}
+            filterDeliveryType={filters.deliveryType}
+            setFilterDeliveryType={(value) => setFilters({ ...filters, deliveryType: value })}
+            filteredRecords={filteredRecords}
+            data={filteredData}
+            title={bookName + " Book Orders"}
+            onFilterClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
+            activeFilterCount={getActiveFilterCount()}
+          />
+        </Suspense>
         {/* Status notification */}
         {updateStatus && (
           <div

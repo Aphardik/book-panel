@@ -21,6 +21,8 @@ import { generateShippingLabelsPDF } from "@book-panel/utils/shpping-label-gener
 import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+
 
 const Header = ({
   totalCopies,
@@ -52,9 +54,12 @@ const Header = ({
   const exportMenuRef = useRef(null);
 
   // Get current page
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-  const currentBook = searchParams.get('book');
+  // const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  // const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  // const currentBook = searchParams.get('book');
+  const pathname = usePathname();
+const searchParams = useSearchParams();
+const currentBook = searchParams.get('book');
   const isDashboardPage = pathname === '/' || pathname === '/book-panel/admin/bookorder';
   const isRecentOrdersPage = pathname === '/book-panel/admin/bookorder/recent-orders';
 
