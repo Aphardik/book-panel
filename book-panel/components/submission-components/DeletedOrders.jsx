@@ -31,6 +31,7 @@ import {
 } from "firebase/firestore";
 import Header from "./Header";
 import TableUI from "./TableUI";
+import { Suspense } from "react";
 
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -267,12 +268,14 @@ const DeletedOrdersPage = () => {
 
     return (
         <div className="min-h-screen bg-background">
-            <Header
-                title="Recycling Bin"
-                data={deletedOrders}
-                filteredRecords={deletedOrders.length}
-                totalCopies={deletedOrders.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0)}
-            />
+            <Suspense fallback={null}>
+                <Header
+                    title="Recycling Bin"
+                    data={deletedOrders}
+                    filteredRecords={deletedOrders.length}
+                    totalCopies={deletedOrders.reduce((sum, item) => sum + (parseInt(item.quantity) || 0), 0)}
+                />
+            </Suspense>
 
             {toast.show && <Toast message={toast.message} type={toast.type} onClose={() => setToast({ ...toast, show: false })} />}
 

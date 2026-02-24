@@ -36,6 +36,7 @@ import {
 } from "recharts";
 import Header from "./Header";
 import Link from "next/link";
+import { Suspense } from "react";
 
 const COLORS = [
   "#10b981",
@@ -245,7 +246,9 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen  transition-colors duration-200">
-      <Header />
+      <Suspense fallback={null}>
+        <Header />
+      </Suspense>
       <div className="p-4 md:p-6 space-y-6">
         {/* Header with Refresh Button */}
         <div className="flex justify-between items-center mb-4">

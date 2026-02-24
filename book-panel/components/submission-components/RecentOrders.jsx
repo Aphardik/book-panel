@@ -30,6 +30,7 @@ import {
 import Header from "./Header";
 import TableUI from "./TableUI";
 import { generateShippingLabelsPDF } from "@book-panel/utils/shpping-label-generator"; // adjust path as needed
+import { Suspense } from "react";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -741,14 +742,16 @@ const RecentOrdersPage = () => {
 
   return (
     <div className="min-h-screen bg-background transition-colors duration-200">
-      <Header
-        totalCopies={calculateTotalCopies(filteredOrders)}
-        data={filteredOrders}
-        title="Recent Orders"
-        filteredRecords={filteredOrders.length}
-        onFilterClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
-        activeFilterCount={getActiveFilterCount()}
-      />
+      <Suspense fallback={null}>
+        <Header
+          totalCopies={calculateTotalCopies(filteredOrders)}
+          data={filteredOrders}
+          title="Recent Orders"
+          filteredRecords={filteredOrders.length}
+          onFilterClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
+          activeFilterCount={getActiveFilterCount()}
+        />
+      </Suspense>
 
       {/* Toast Notification */}
       {toast.show && (
