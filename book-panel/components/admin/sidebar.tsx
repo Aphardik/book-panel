@@ -150,7 +150,7 @@ export function Sidebar() {
         )}
       </button>
 
-      <div className={cn("px-4 py-4", isCollapsed && "px-2")}>
+      <Link href="/" className={cn("px-4 py-4", isCollapsed && "px-2")}>
         {!isCollapsed ? (
           <>
             <div className="text-xl font-semibold">AP Form</div>
@@ -161,7 +161,7 @@ export function Sidebar() {
             <img src="/book-panel/logo.png" className="h-10" alt="" />
           </div>
         )}
-      </div>
+      </Link>
 
       <nav className="flex-1 px-2">
         <ul className="grid gap-1">

@@ -69,19 +69,19 @@ export default function RootHomePage() {
       </nav>
 
       <main className="relative z-10 max-w-7xl mx-auto px-6 flex flex-col items-center justify-center min-h-[calc(100vh-80px)]">
-        <div className="text-center mb-16 space-y-4 max-w-3xl">
+        {/* <div className="text-center mb-16 space-y-4 max-w-3xl">
           <h1 className="text-4xl md:text-5xl font-black tracking-tight text-slate-900 leading-tight">
             Select Your Panel
           </h1>
           <p className="text-slate-600 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
             Welcome to the AGT Book Panel. Please choose the panel you wish to access.
           </p>
-        </div>
+        </div> */}
 
         <div className="grid md:grid-cols-2 gap-8 w-full max-w-5xl">
           {/* Card 1: AGT Panel */}
           <Link href="/agt-panel/admin/dashboard" className="group">
-            <div className="relative h-full bg-white border border-slate-200 rounded-3xl p-8 transition-all duration-500 hover:border-purple-500/50 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(168,85,247,0.15)]">
+            <div className="relative h-full bg-white border border-slate-200 rounded-sm p-8 transition-all duration-500 hover:border-purple-500/50 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(168,85,247,0.15)]">
               <div className="relative z-10 h-full flex flex-col">
                 <h2 className="text-2xl font-bold mb-4 text-slate-800 group-hover:text-purple-600 transition-colors">AGT Book Management</h2>
                 <p className="text-slate-600 leading-relaxed mb-8 flex-grow">
@@ -91,13 +91,13 @@ export default function RootHomePage() {
                   Enter Dashboard <ArrowRight size={18} className="ml-2" />
                 </div>
               </div>
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-sm" />
             </div>
           </Link>
 
           {/* Card 2: Book Panel */}
           <Link href="/book-panel/admin/bookorder" className="group">
-            <div className="relative h-full bg-white border border-slate-200 rounded-3xl p-8 transition-all duration-500 hover:border-blue-500/50 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(59,130,246,0.15)]">
+            <div className="relative h-full bg-white border border-slate-200 rounded-sm p-8 transition-all duration-500 hover:border-blue-500/50 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(59,130,246,0.15)]">
               <div className="relative z-10 h-full flex flex-col">
                 <h2 className="text-2xl font-bold mb-4 text-slate-800 group-hover:text-blue-600 transition-colors">Book Order & Forms</h2>
                 <p className="text-slate-600 leading-relaxed mb-8 flex-grow">
@@ -107,7 +107,7 @@ export default function RootHomePage() {
                   Enter Dashboard <ArrowRight size={18} className="ml-2" />
                 </div>
               </div>
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-sm" />
             </div>
           </Link>
         </div>

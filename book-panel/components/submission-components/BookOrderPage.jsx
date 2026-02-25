@@ -7,6 +7,8 @@ import {
   getFirestore,
   doc,
   updateDoc,
+  setDoc,
+  getDoc,
 } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import Header from "./Header";
@@ -26,7 +28,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ✅ FIXED: Static config moved OUTSIDE component — was causing hook order issues
+// Static config moved OUTSIDE component
 const BOOK_CONFIGS = {
   "sanskrutam-saralam": {
     hasBookQuantities: true,
@@ -45,7 +47,6 @@ const BOOK_CONFIGS = {
 };
 
 const DynamicBookOrderPage = () => {
-  // ✅ ALL hooks declared at the top — unconditional, fixed order
   const router = useRouter();
   const searchParams = useSearchParams();
   const bookName = searchParams.get("book");
@@ -66,8 +67,15 @@ const DynamicBookOrderPage = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [itemToDeleteIndex, setItemToDeleteIndex] = useState(null);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  
+  // Editable fields (now extended)
   const [editAddress, setEditAddress] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editState, setEditState] = useState("");
+  const [editPincode, setEditPincode] = useState("");
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -76,7 +84,7 @@ const DynamicBookOrderPage = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [allPages, setAllPages] = useState(new Map());
 
-  // Refs for cursor tokens — always current inside callbacks
+  // Refs for cursor tokens
   const lastDocIdRef = useRef(null);
   const lastTimestampRef = useRef(null);
   const allPagesRef = useRef(new Map());
@@ -103,13 +111,13 @@ const DynamicBookOrderPage = () => {
     afterOrderId: "",
   });
 
-  // ✅ FIXED: useMemo for bookConfig — stable, no hook rule violation
+  // Book configuration
   const bookConfig = useMemo(() => {
     const normalizedBookName = bookName?.toLowerCase().replace(/\s+/g, "-");
     return BOOK_CONFIGS[normalizedBookName] || BOOK_CONFIGS.default;
   }, [bookName]);
 
-  // ✅ FIXED: useMemo for tableColumns — depends only on bookConfig
+  // Table columns
   const tableColumns = useMemo(() => {
     const baseColumns = [
       { field: "timestamp", header: "Date & Time" },
@@ -145,7 +153,7 @@ const DynamicBookOrderPage = () => {
 
   const extraDataColumns = [];
 
-  // ✅ FIXED: useCallback for calculateTotalCopies
+  // Calculate total copies
   const calculateTotalCopies = useCallback((dataArray) => {
     return dataArray.reduce((sum, item) => {
       if (bookConfig.hasBookQuantities) {
@@ -161,7 +169,7 @@ const DynamicBookOrderPage = () => {
     }, 0);
   }, [bookConfig]);
 
-  // ✅ FIXED: useCallback for applyFilters
+  // Apply filters
   const applyFilters = useCallback((dataArray) => {
     return dataArray.filter((item) => {
       if (item.isDelete === true) return false;
@@ -236,7 +244,7 @@ const DynamicBookOrderPage = () => {
     });
   }, [filters, bookConfig]);
 
-  // ✅ FIXED: useMemo for filteredData
+  // Filtered data
   const filteredData = useMemo(() => applyFilters(data), [applyFilters, data]);
   const filteredRecords = filteredData.length;
 
@@ -498,10 +506,16 @@ const DynamicBookOrderPage = () => {
 
   const handleEdit = (item, index) => {
     setCurrentEditItem({ ...item, index });
+    // Set all editable fields
     setParcelId(item.parcelId || "");
     setDeliveryType(item.deliveryType || "parcelId");
-    setEditAddress(item.address || "");
-    setEditPhone(item.phone || "");
+    setEditAddress(item["એડ્રેસ"] || item["एड्रेस"] || "");
+    setEditPhone(item["मोबाइल नंबर"] || "");
+    setEditFirstName(item["नाम"] || "");
+    setEditLastName(item["उपनाम"] || "");
+    setEditCity(item["शहर"] || "");
+    setEditState(item["राज्य"] || "");
+    setEditPincode(item["पिनकोड"] || "");
     setEditModalOpen(true);
   };
 
@@ -571,34 +585,70 @@ const DynamicBookOrderPage = () => {
       const itemToUpdate = currentEditItem;
       const orderDocRef = doc(db, "bookorders", itemToUpdate.id);
 
-      const phoneKey =
-        Object.keys(itemToUpdate).find((key) => key === "मोबाइल नंबर") || "मोबाइल नंबर";
-      const addressKey =
-        Object.keys(itemToUpdate).find((key) =>
-          ["એડ્રેસ/एड्रेस", "एड्रेस", "એડ્રેસ"].includes(key)
-        ) || "एड्रेस";
-
-      await updateDoc(orderDocRef, {
+      // Prepare update data for the order
+      const orderUpdateData = {
         parcelId: deliveryType === "handtohand" ? "On Hand" : parcelId.trim(),
         deliveryType,
         hasParcel: true,
         lastUpdated: new Date(),
-        [phoneKey]: editPhone,
-        [addressKey]: editAddress,
-      });
+        // Address fields
+        "એડ્રેસ": editAddress,
+        "मोबाइल नंबर": editPhone,
+        "नाम": editFirstName,
+        "उपनाम": editLastName,
+        "शहर": editCity,
+        "राज्य": editState,
+        "पिनकोड": editPincode,
+      };
 
+      // Update the order document
+      await updateDoc(orderDocRef, orderUpdateData);
+
+      // Now update (or create) the reader document in the 'readers' collection
+      // Use mobile number as document ID
+      const mobile = editPhone;
+      if (mobile) {
+        const readerDocRef = doc(db, "readers", mobile);
+        const readerSnapshot = await getDoc(readerDocRef);
+        
+        const readerData = {
+          firstName: editFirstName,
+          lastName: editLastName,
+          mobile: editPhone,
+          address: editAddress,
+          city: editCity,
+          state: editState,
+          pincode: editPincode,
+          lastUpdated: new Date(),
+          // If reader already exists, we merge; if not, create with these fields
+        };
+
+        // Also store the order IDs for this reader (optional, but useful)
+        // We can maintain an array of order IDs
+        if (readerSnapshot.exists()) {
+          // Merge with existing data (keep orderIds array)
+          const existingData = readerSnapshot.data();
+          const orderIds = existingData.orderIds || [];
+          if (!orderIds.includes(itemToUpdate.id)) {
+            orderIds.push(itemToUpdate.id);
+          }
+          readerData.orderIds = orderIds;
+        } else {
+          // New reader, start with this order ID
+          readerData.orderIds = [itemToUpdate.id];
+        }
+
+        await setDoc(readerDocRef, readerData, { merge: true });
+      }
+
+      // Update local state and cache
       const newData = [...data];
       newData[currentEditItem.index] = {
-        ...currentEditItem,
-        parcelId: deliveryType === "handtohand" ? "On Hand" : parcelId.trim(),
-        deliveryType,
-        hasParcel: true,
-        lastUpdated: new Date(),
-        phone: editPhone,
-        address: editAddress,
-        [phoneKey]: editPhone,
-        [addressKey]: editAddress,
+        ...itemToUpdate,
+        ...orderUpdateData,
       };
+      // Keep timestamp as original
+      newData[currentEditItem.index].timestamp = itemToUpdate.timestamp;
       newData.sort((a, b) => b.timestamp - a.timestamp);
       setData(newData);
 
@@ -700,7 +750,7 @@ const DynamicBookOrderPage = () => {
     });
   }, [filteredData, data, bookConfig]);
 
-  // ✅ Early returns AFTER all hooks
+  // Early returns
   if (status === "loading") {
     return (
       <div className="h-screen flex flex-col items-center justify-center">
@@ -1160,6 +1210,26 @@ const DynamicBookOrderPage = () => {
               </div>
 
               <div className="space-y-4 max-h-[60vh] overflow-y-auto px-1 custom-scrollbar">
+                {/* Name fields */}
+                <div>
+                  <label className="block text-sm font-bold mb-1 text-foreground">First Name</label>
+                  <input
+                    type="text"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    className="bg-background text-foreground shadow appearance-none border border-border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1 text-foreground">Last Name</label>
+                  <input
+                    type="text"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    className="bg-background text-foreground shadow appearance-none border border-border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-bold mb-1 text-foreground">Address</label>
                   <textarea
@@ -1169,6 +1239,7 @@ const DynamicBookOrderPage = () => {
                     rows={3}
                   />
                 </div>
+
                 <div>
                   <label className="block text-sm font-bold mb-1 text-foreground">Mobile Number</label>
                   <input
@@ -1178,6 +1249,37 @@ const DynamicBookOrderPage = () => {
                     className="bg-background text-foreground shadow appearance-none border border-border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-bold mb-1 text-foreground">City</label>
+                  <input
+                    type="text"
+                    value={editCity}
+                    onChange={(e) => setEditCity(e.target.value)}
+                    className="bg-background text-foreground shadow appearance-none border border-border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold mb-1 text-foreground">State</label>
+                  <input
+                    type="text"
+                    value={editState}
+                    onChange={(e) => setEditState(e.target.value)}
+                    className="bg-background text-foreground shadow appearance-none border border-border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold mb-1 text-foreground">Pincode</label>
+                  <input
+                    type="text"
+                    value={editPincode}
+                    onChange={(e) => setEditPincode(e.target.value)}
+                    className="bg-background text-foreground shadow appearance-none border border-border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline"
+                  />
+                </div>
+
                 <div className="border-t pt-4">
                   <label className="block text-sm font-bold mb-2 text-foreground" htmlFor="deliveryType">
                     Delivery Type
@@ -1188,13 +1290,14 @@ const DynamicBookOrderPage = () => {
                     onChange={(e) => setDeliveryType(e.target.value)}
                     className="bg-background text-foreground shadow appearance-none border border-border rounded w-full py-2 px-3 leading-tight focus:outline-none focus:shadow-outline"
                   >
+                    <option value="">Select Delivery Type</option>
                     <option value="parcelId">Parcel ID</option>
                     <option value="courierId">Courier ID</option>
                     <option value="handtohand">Hand to Hand</option>
                   </select>
                 </div>
 
-                {deliveryType !== "handtohand" && (
+                {deliveryType !== "handtohand" && deliveryType !== "" && (
                   <div className="mb-4">
                     <label className="block text-sm font-bold mb-2 text-foreground" htmlFor="parcelId">
                       {deliveryType === "parcelId" ? "Parcel Tracking ID" : "Courier ID"}
