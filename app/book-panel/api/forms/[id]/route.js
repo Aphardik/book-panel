@@ -73,7 +73,7 @@ export async function GET(request, { params }) {
       // Handle slug (public access)
       result = await sql`
         SELECT 
-          id, title, slug, link, tqmsg, tqmsg_description, description, thumbnails, no_of_copies, stock, copy_question,
+          id, title, slug, book_label, link, tqmsg, tqmsg_description, description, thumbnails, no_of_copies, stock, copy_question,
           show_mobile, show_name, show_sname, show_pincode, 
           show_state, show_city, show_address, show_copies, 
           show_gender, show_age, active, show, active_from, active_to, language,
@@ -181,6 +181,7 @@ export async function PUT(request, { params }) {
 
     const title = formData.get('title');
     const slug = formData.get('slug');
+    const book_label = formData.get('book_label');
     const link = formData.get('link');
     const tqmsg = formData.get('tqmsg') || '';
     const tqmsg_description = formData.get('tqmsg_description') || '';
@@ -288,6 +289,7 @@ export async function PUT(request, { params }) {
     const result = await sql`
       UPDATE forms SET 
         title = ${title}, 
+        book_label = ${book_label}, 
         slug = ${slug}, 
         link = ${link}, 
         tqmsg = ${tqmsg}, 

@@ -22,6 +22,7 @@ import { useToast } from "@/book-panel/hooks/use-toast";
 
 type FormDraft = {
   title: string;
+  book_label: string;
   slug: string;
   link: string;
   tqmsg: string;
@@ -90,6 +91,7 @@ export function FormBuilder({
     () => ({
       title: editingForm?.title ?? "",
       slug: editingForm?.slug ?? "",
+      book_label: editingForm?.book_label ?? "",
       link: editingForm?.link ?? "",
       tqmsg: editingForm?.tqmsg ?? DEFAULT_MESSAGES.english.tqmsg,
       tqmsg_description: editingForm?.tqmsg_description ?? DEFAULT_MESSAGES.english.tqmsg_description,
@@ -261,6 +263,7 @@ export function FormBuilder({
 
     setDraft({
       title: "",
+      book_label: "",
       description: "",
       slug: "",
       link: getFormLink(draft.slug),
@@ -306,6 +309,10 @@ export function FormBuilder({
       toast({ description: "Please add a title.", variant: "destructive" });
       return;
     }
+    if (!draft.book_label.trim()) {
+      toast({ description: "Please add a book label.", variant: "destructive" });
+      return;
+    }
 
     if (!draft.slug.trim()) {
       toast({ description: "Please add a slug.", variant: "destructive" });
@@ -336,6 +343,7 @@ export function FormBuilder({
 
       // Add basic form fields
       formData.append('title', draft.title.trim());
+      formData.append('book_label', draft.book_label.trim());
       formData.append('slug', draft.slug.trim());
       formData.append('link', getFormLink(draft.slug.trim()));
       formData.append('tqmsg', draft.tqmsg.trim());
@@ -480,6 +488,18 @@ export function FormBuilder({
                 placeholder="Enter the Title of form"
                 value={draft.title}
                 onChange={(e) => setField("title", e.target.value)}
+                required
+                maxLength={255}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="book_label">Book Label *</Label>
+              <Input
+                id="book_label"
+                placeholder="Enter the Book Label of form"
+                value={draft.book_label}
+                onChange={(e) => setField("book_label", e.target.value)}
                 required
                 maxLength={255}
               />

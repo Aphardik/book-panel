@@ -19,6 +19,7 @@ export function dbFormToComponentFormat(dbForm: any): FormDefinition {
   return {
     id: dbForm.id,
     title: dbForm.title,
+    book_label: dbForm.book_label,
     slug: dbForm.slug,
     link: dbForm.link,
     tqmsg: dbForm.tqmsg || '',
