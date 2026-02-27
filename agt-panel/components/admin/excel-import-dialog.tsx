@@ -861,7 +861,7 @@ interface ImportResult {
     imageStats?: { matched: number; total: number }
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://agt-api.adhyatmparivar.com'
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://agt-api.adhyatmparivar.com';
 
 export default function ExcelImportDialog({ open, onOpenChange, onImportComplete }: {
     open: boolean; onOpenChange: (open: boolean) => void; onImportComplete: () => void
