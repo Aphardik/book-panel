@@ -1,5 +1,5 @@
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://agt-api.adhyatmparivar.com';
+const API_BASE_URL = "http://localhost:3000"; // Change this to your actual API base URL';
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -97,6 +97,7 @@ export const booksApi = {
   bulkCreate: (data: any) => apiRequest<any>('/api/books/bulk', { method: 'POST', body: data }),
   update: (id: number | string, data: any) => apiRequest<any>(`/api/books/${id}`, { method: 'PUT', body: data }),
   delete: (id: number | string) => apiRequest<any>(`/api/books/${id}`, { method: 'DELETE' }),
+  bulkDelete: (ids: (number | string)[]) => apiRequest<any>('/api/books/bulk-delete', { method: 'DELETE', body: { ids } }),
 };
 
 // --- Readers ---
