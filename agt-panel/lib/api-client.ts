@@ -1,5 +1,5 @@
 
-const API_BASE_URL = "http://localhost:3000"; // Change this to your actual API base URL';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://agt-api.adhyatmparivar.com";
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 

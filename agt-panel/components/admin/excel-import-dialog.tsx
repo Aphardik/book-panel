@@ -848,12 +848,12 @@ import { useToast } from "@/agt-panel/components/ui/use-toast"
 import * as XLSX from 'xlsx'
 
 interface ExcelBookRow {
-    'पुस्तक कोड / नंबर': any; 'कबाट नंबर': any; 'बुक साइज': any; 'पुस्तक का नाम': any
-    'माहिती': any; 'कर्ता/लेखक': any; 'टीकाकार': any; 'प्रकाशक': any
-    'संपादक': any; 'अनुवादक': any; 'भाषा': any; 'विषय': any
-    'श्रेणि ૧': any; 'श्रेणि ૨': any; 'श्रेणि ૩': any; 'पाना': any
-    'इ. स.': any; 'विक्रम संवत': any; 'वीर संवत': any; 'किमत': any
-    'प्रकार': any; 'खાસ પુસ્તક': any; 'आवृत्ति': any
+    'Book Code': any; 'Kabat Number': any; 'Book Size': any; 'Book Title': any
+    'Description': any; 'Author': any; 'Tikakar': any; 'Publisher': any
+    'Sampadak': any; 'Anuvadak': any; 'Language': any; 'Subject': any
+    'Category 1': any; 'Category 2': any; 'Category 3': any; 'Pages': any
+    'Year AD': any; 'Vikram Samvat': any; 'Veer Samvat': any; 'Price': any
+    'Type': any; 'Featured': any; 'Edition': any
 }
 
 interface ImportResult {
@@ -929,36 +929,36 @@ export default function ExcelImportDialog({ open, onOpenChange, onImportComplete
         const parseNum = (v: any) => { const n = parseInt(String(v ?? '').replace(/[^0-9.-]/g, '')); return isNaN(n) ? null : n }
         const parseFloat2 = (v: any) => { const n = parseFloat(String(v ?? '').replace(/[^0-9.-]/g, '')); return isNaN(n) ? null : n }
         const langMap: Record<string, number> = {
-            'हिंदी': 1, 'हि': 1, 'हि.': 1, 'सं': 1, 'Sanskrit': 1,
-            'गुजराती': 2, 'ગુ': 2, 'ગુ.': 2,
-            'अंग्रेजी': 3, 'Eng': 3
+            'हिंदी': 1, 'हि': 1, 'हि.': 1, 'सं': 1, 'Sanskrit': 1, 'Hindi': 1,
+            'गुजराती': 2, 'ગુ': 2, 'ગુ.': 2, 'Gujarati': 2,
+            'अंग्रेजी': 3, 'Eng': 3, 'English': 3
         }
-        const isFeat = String(row['खाસ પુસ્તક'] || row['खास पुस्तक'] || '').toLowerCase()
+        const isFeat = String(row['Featured'] || '').toLowerCase()
         return {
-            bookCode: parseNum(row['पुस्तक कोड / नंबर']) || 0,
-            kabatNumber: parseNum(row['कबाट नंबर']) ?? '',
-            bookSize: String(row['बुक साइज'] || '').trim(),
-            title: String(row['पुस्तक का नाम'] || '').trim(),
-            description: String(row['माहिती'] || '').trim(),
-            author: String(row['कर्ता/लेखक'] || '').trim(),
-            tikakar: String(row['टीकाकार'] || '').trim(),
-            prakashak: String(row['प्रकाशक'] || '').trim(),
-            sampadak: String(row['संपादक'] || '').trim(),
-            anuvadak: String(row['अनुवादक'] || '').trim(),
-            vishay: String(row['विषय'] || '').trim(),
-            shreni1: String(row['श्रेणि ૧'] || '').trim(),
-            shreni2: String(row['श्रेणि ૨'] || '').trim(),
-            shreni3: String(row['श्रेणि ૩'] || '').trim(),
-            pages: parseNum(row['पाना'] || row['પાના']) ?? '',
-            yearAD: parseNum(row['इ. स.']) ?? '',
-            vikramSamvat: parseNum(row['विक्रम संवत']) ?? '',
-            veerSamvat: parseNum(row['वीर संवत']) ?? '',
-            price: parseFloat2(row['किमत']) ?? 0,
-            prakar: String(row['प्रकार'] || '').trim(),
-            edition: parseNum(row['आवृत्ति']) ?? '',
+            bookCode: parseNum(row['Book Code']) || 0,
+            kabatNumber: parseNum(row['Kabat Number']) ?? '',
+            bookSize: String(row['Book Size'] || '').trim(),
+            title: String(row['Book Title'] || '').trim(),
+            description: String(row['Description'] || '').trim(),
+            author: String(row['Author'] || '').trim(),
+            tikakar: String(row['Tikakar'] || '').trim(),
+            prakashak: String(row['Publisher'] || '').trim(),
+            sampadak: String(row['Sampadak'] || '').trim(),
+            anuvadak: String(row['Anuvadak'] || '').trim(),
+            vishay: String(row['Subject'] || '').trim(),
+            shreni1: String(row['Category 1'] || '').trim(),
+            shreni2: String(row['Category 2'] || '').trim(),
+            shreni3: String(row['Category 3'] || '').trim(),
+            pages: parseNum(row['Pages']) ?? '',
+            yearAD: parseNum(row['Year AD']) ?? '',
+            vikramSamvat: parseNum(row['Vikram Samvat']) ?? '',
+            veerSamvat: parseNum(row['Veer Samvat']) ?? '',
+            price: parseFloat2(row['Price']) ?? 0,
+            prakar: String(row['Type'] || '').trim(),
+            edition: parseNum(row['Edition']) ?? '',
             isAvailable: 'true',
             featured: String(['yes', 'true', 'હા', 'हा'].includes(isFeat)),
-            languageId: langMap[String(row['भाषा'] || '').trim()] || 1,
+            languageId: langMap[String(row['Language'] || '').trim()] || 1,
             categoryId: '',
             stockQty: 1,
         }
@@ -1100,19 +1100,19 @@ export default function ExcelImportDialog({ open, onOpenChange, onImportComplete
     // ── Sample download ───────────────────────────────────────────────────────
     const handleDownloadSample = () => {
         const headers = [
-            'पुस्तक कोड / नंबर', 'कबाट नंबर', 'बुक साइज', 'पुस्तक का नाम', 'माहिती',
-            'कर्ता/लेखक', 'टीकाकार', 'प्रकाशक', 'संपादक', 'अनुवादक', 'भाषा', 'विषय',
-            'श्रेणि ૧', 'श्रेणि ૨', 'श्रेणि ૩', 'पाना', 'इ. स.', 'विक्रम संवत',
-            'वीर संवत', 'किमत', 'प्रकार', 'खाસ પુસ્તક', 'आवृत्ति'
+            'Book Code', 'Kabat Number', 'Book Size', 'Book Title', 'Description',
+            'Author', 'Tikakar', 'Publisher', 'Sampadak', 'Anuvadak', 'Language', 'Subject',
+            'Category 1', 'Category 2', 'Category 3', 'Pages', 'Year AD', 'Vikram Samvat',
+            'Veer Samvat', 'Price', 'Type', 'Featured', 'Edition'
         ]
         const ws = XLSX.utils.json_to_sheet([{
-            'पुस्तक कोड / नंबर': 101, 'कबाट नंबर': 5, 'बुक साइज': 'Pocket',
-            'पुस्तक का नाम': 'Sample Book', 'माहिती': 'Description',
-            'कर्ता/लेखक': 'Author', 'टीकाकार': '', 'प्रकाशक': 'Publisher',
-            'संपादक': '', 'अनुवादक': '', 'भाषा': 'हिंदी', 'विषय': 'Jainism',
-            'श्रेणि ૧': 'Cat1', 'श्रेणि ૨': '', 'श्रेणि ૩': '', 'पाना': 250,
-            'इ. स.': 2023, 'विक्रम संवत': 2079, 'वीर संवत': 2549, 'किमत': 150,
-            'प्रकार': 'Hard', 'खाસ પુસ્તક': 'Yes', 'आवृत्ति': 1,
+            'Book Code': 101, 'Kabat Number': 5, 'Book Size': 'Pocket',
+            'Book Title': 'Sample Book', 'Description': 'Description',
+            'Author': 'Author', 'Tikakar': '', 'Publisher': 'Publisher',
+            'Sampadak': '', 'Anuvadak': '', 'Language': 'Hindi', 'Subject': 'Jainism',
+            'Category 1': 'Cat1', 'Category 2': '', 'Category 3': '', 'Pages': 250,
+            'Year AD': 2023, 'Vikram Samvat': 2079, 'Veer Samvat': 2549, 'Price': 150,
+            'Type': 'Hard', 'Featured': 'Yes', 'Edition': 1,
         }], { header: headers })
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, "Books")
@@ -1155,7 +1155,7 @@ export default function ExcelImportDialog({ open, onOpenChange, onImportComplete
                             </h4>
                             <Button variant="outline" size="sm" onClick={handleDownloadSample}
                                 className="text-xs font-bold border-blue-200 text-blue-600 hover:bg-blue-50 rounded-full px-4 shadow-sm">
-                                <Download className="h-3.5 w-3.5 mr-1.5" /> Download Example
+                                <Download className="h-3.5 w-3.5 mr-1.5" /> Download Template
                             </Button>
                         </div>
 
