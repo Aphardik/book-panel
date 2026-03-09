@@ -39,7 +39,7 @@ export const generateShippingLabelsPDF = async (data, title) => {
     // A4 usable height ≈ 287mm with 3mm top/bottom margins.
     // Each label row is ~32mm → fits 9 labels per page comfortably.
     const content = [];
-    const labelsPerPage = 9; // maximised for A4
+    const labelsPerPage = 11; // maximised for A4
 
     for (let i = 0; i < data.length; i += labelsPerPage) {
       const tableBody = [];
@@ -109,7 +109,7 @@ export const generateShippingLabelsPDF = async (data, title) => {
                         { text: "   Qty: ", bold: true, fontSize: 10 },
                         { text: `${copies}`, bold: true, fontSize: 10 },
                       ],
-                      fillColor: "#FFE066",
+                      // fillColor: "#FFE066",
                       margin: [3, 2, 3, 2],
                     },
                   ],
