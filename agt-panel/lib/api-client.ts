@@ -1,5 +1,6 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://agt-api.adhyatmparivar.com";
+// const API_BASE_URL = "http://localhost:3000";
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -204,4 +205,13 @@ export const logsApi = {
   create: (data: any) => apiRequest<any>('/api/activity-logs', { method: 'POST', body: data }),
   update: (id: number | string, data: any) => apiRequest<any>(`/api/activity-logs/${id}`, { method: 'PUT', body: data }),
   delete: (id: number | string) => apiRequest<any>(`/api/activity-logs/${id}`, { method: 'DELETE' }),
+};
+// --- Saved Reports ---
+
+export const reportsApi = {
+  getAll: () => apiRequest<any[]>('/api/saved-reports'),
+  getById: (id: number | string) => apiRequest<any>(`/api/saved-reports/${id}`),
+  create: (data: { name: string; configuration: any }) => apiRequest<any>('/api/saved-reports', { method: 'POST', body: data }),
+  update: (id: number | string, data: { name: string; configuration: any }) => apiRequest<any>(`/api/saved-reports/${id}`, { method: 'PUT', body: data }),
+  delete: (id: number | string) => apiRequest<any>(`/api/saved-reports/${id}`, { method: 'DELETE' }),
 };

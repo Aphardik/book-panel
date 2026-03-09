@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Menu, X, LogOut, Moon, Sun, LayoutDashboard, BookOpen, BookPlus, Heart, Tags, Languages, ShoppingCart, Users, Activity, ChevronLeft, ChevronRight } from "lucide-react"
+import { Menu, X, LogOut, Moon, Sun, LayoutDashboard, BookOpen, BookPlus, Heart, Tags, Languages, ShoppingCart, Users, Activity, ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react"
 import { useTheme } from "next-themes"
 import { signOut } from "next-auth/react"
 import { useCart } from "@/agt-panel/lib/cart-context"
@@ -77,6 +77,7 @@ export default function Sidebar({ isAdmin, userName, isOpen: controlledIsOpen, o
     { href: "/agt-panel/admin/books", label: "Books", icon: BookOpen },
     { href: "/agt-panel/admin/orders", label: "Orders", icon: ShoppingCart },
     { href: "/agt-panel/admin/readers", label: "Readers", icon: Users },
+    { href: "/agt-panel/admin/reports", label: "Reports", icon: FileSpreadsheet },
     { href: "/agt-panel/admin/activity-logs", label: "Activity Logs", icon: Activity },
     { href: "/agt-panel/admin/categories", label: "Categories", icon: Tags },
     { href: "/agt-panel/admin/languages", label: "Languages", icon: Languages },
