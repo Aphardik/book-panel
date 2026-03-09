@@ -1,27 +1,40 @@
 import * as pdfMake from "pdfmake/build/pdfmake";
 
+// Utility: Detect script and return appropriate font
+const getFontForText = (text) => {
+  if (!text) return "NotoSans";
+  const hasGujarati = /[\u0A80-\u0AFF]/.test(text);
+  const hasDevanagari = /[\u0900-\u097F]/.test(text);
+  if (hasGujarati) return "AnekGujarati";
+  if (hasDevanagari) return "Karma";
+  return "NotoSans";
+};
+
 export const generateShippingLabelsPDF = async (data, title) => {
   console.log(data, "data label");
   try {
     // Load fonts and logo
-    const notoSansFontPath = "/book-panel/NotoSans-Regular.ttf";
-    const logoPath = "/book-panel/logo.png";
-
-    const [notoSansFontResponse, logoResponse] = await Promise.all([
-      fetch(notoSansFontPath),
-      fetch(logoPath),
+    const [notoResp, anekResp, karmaResp, logoResp] = await Promise.all([
+      fetch("/book-panel/NotoSans-Regular.ttf"),
+      fetch("/book-panel/AnekGujarati-Regular.ttf"),
+      fetch("/book-panel/Karma-Regular.ttf"),
+      fetch("/book-panel/logo.png"),
     ]);
 
-    const [notoSansFontBuffer, logoBuffer] = await Promise.all([
-      notoSansFontResponse.arrayBuffer(),
-      logoResponse.arrayBuffer(),
+    const [notoBuf, anekBuf, karmaBuf, logoBuf] = await Promise.all([
+      notoResp.arrayBuffer(),
+      anekResp.arrayBuffer(),
+      karmaResp.arrayBuffer(),
+      logoResp.arrayBuffer(),
     ]);
 
-    const notoSansFontBase64 = arrayBufferToBase64(notoSansFontBuffer);
-    const logoBase64 = arrayBufferToBase64(logoBuffer);
+    const notoBase64 = arrayBufferToBase64(notoBuf);
+    const anekBase64 = arrayBufferToBase64(anekBuf);
+    const karmaBase64 = arrayBufferToBase64(karmaBuf);
+    const logoBase64 = arrayBufferToBase64(logoBuf);
     const logoDataUrl = `data:image/png;base64,${logoBase64}`;
 
-    // Define fonts — NotoSans covers Gujarati, Devanagari, and Latin
+    // Define fonts
     const fonts = {
       NotoSans: {
         normal: "NotoSans-Regular.ttf",
@@ -29,17 +42,31 @@ export const generateShippingLabelsPDF = async (data, title) => {
         italics: "NotoSans-Regular.ttf",
         bolditalics: "NotoSans-Regular.ttf",
       },
+      AnekGujarati: {
+        normal: "AnekGujarati-Regular.ttf",
+        bold: "AnekGujarati-Regular.ttf",
+        italics: "AnekGujarati-Regular.ttf",
+        bolditalics: "AnekGujarati-Regular.ttf",
+      },
+      Karma: {
+        normal: "Karma-Regular.ttf",
+        bold: "Karma-Regular.ttf",
+        italics: "Karma-Regular.ttf",
+        bolditalics: "Karma-Regular.ttf",
+      },
     };
 
     const vfs = {
-      "NotoSans-Regular.ttf": notoSansFontBase64,
+      "NotoSans-Regular.ttf": notoBase64,
+      "AnekGujarati-Regular.ttf": anekBase64,
+      "Karma-Regular.ttf": karmaBase64,
     };
 
     // ── Layout constants ──────────────────────────────────────────────────────
     // A4 usable height ≈ 287mm with 3mm top/bottom margins.
     // Each label row is ~32mm → fits 9 labels per page comfortably.
     const content = [];
-    const labelsPerPage = 11; // maximised for A4
+    const labelsPerPage = 10; // maximised for A4
 
     for (let i = 0; i < data.length; i += labelsPerPage) {
       const tableBody = [];
@@ -77,21 +104,21 @@ export const generateShippingLabelsPDF = async (data, title) => {
             {
               text: `${item["नाम"] || ""} ${item["उपनाम"] || ""}`.trim(),
               bold: true,
-              fontSize: 8,
-              font: "NotoSans",
+              fontSize: 9,
+              font: getFontForText(`${item["नाम"] || ""} ${item["उपनाम"] || ""}`),
             },
             // Address
             {
               text: address,
-              fontSize: 8,
-              font: "NotoSans",
+              fontSize: 9,
+              font: getFontForText(address),
               margin: [0, 1, 0, 1],
             },
             // City / PIN / Mobile
             {
               text: `${item["शहर"] || ""} - Pin: ${item["पिनकोड"] || ""}, Mo: ${item["मोबाइल नंबर"] || ""}`,
-              fontSize: 8,
-              font: "NotoSans",
+              fontSize: 9,
+              font: getFontForText(`${item["शहर"] || ""} - Pin: ${item["पिनकोड"] || ""}`),
               margin: [0, 0, 0, 3],
             },
             // Highlighted order/book/qty line — pinned to bottom
@@ -105,7 +132,7 @@ export const generateShippingLabelsPDF = async (data, title) => {
                         { text: "Order Id: ", bold: true, fontSize: 10 },
                         { text: `${registrationId}`, bold: true, fontSize: 10 },
                         { text: "   Book: ", bold: true, fontSize: 10 },
-                        { text: `${bookName}`, bold: true, fontSize: 10 },
+                        { text: `${bookName}`, bold: true, fontSize: 10, font: getFontForText(bookName) },
                         { text: "   Qty: ", bold: true, fontSize: 10 },
                         { text: `${copies}`, bold: true, fontSize: 10 },
                       ],
@@ -125,21 +152,21 @@ export const generateShippingLabelsPDF = async (data, title) => {
         // ── RIGHT CELL: Sender info ──────────────────────────────────────────
         const senderCell = {
           stack: [
-            { text: "From:", fontSize: 8, bold: true, font: "NotoSans" },
+            { text: "From:", fontSize: 9, bold: true, font: "NotoSans" },
             {
               text: "Adhyatm Parivar, Adhyatm Bhavan, 3rd Floor",
-              fontSize: 7,
+              fontSize: 8,
               bold: true,
               font: "NotoSans",
             },
             {
               text: "Anand Shravak Aradhana Bhavan, Shanti Vardhak Jain Sangh, Near Sanjeev Kumar Auditorium, Pal, Surat - 395009",
-              fontSize: 7,
+              fontSize: 8,
               font: "NotoSans",
             },
             {
               text: "Contact: 7676769600",
-              fontSize: 7,
+              fontSize: 8,
               font: "NotoSans",
               margin: [0, 1, 0, 0],
             },

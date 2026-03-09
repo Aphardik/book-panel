@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  ArrowRightLeft,
 } from "lucide-react"
 import {
   Select,
@@ -163,7 +164,29 @@ export function Sidebar() {
         )}
       </Link>
 
-      <nav className="flex-1 px-2">
+      {/* Panel Switcher for Super Admin */}
+      {user?.role === "super admin" && (
+        <div className="px-2 py-2 border-b">
+          <Link
+            href="/agt-panel/"
+            className={cn(
+              "w-full flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors bg-primary/10 text-primary hover:bg-primary/20",
+              isCollapsed && "justify-center px-2"
+            )}
+            title={isCollapsed ? "Switch to AGT Panel" : undefined}
+          >
+            <ArrowRightLeft className="h-4 w-4 shrink-0" />
+            {!isCollapsed && (
+              <div className="flex flex-col">
+                <span className="text-xs font-bold leading-tight">Switch to</span>
+                <span className="text-[10px] opacity-80 uppercase tracking-tight">AGT Panel</span>
+              </div>
+            )}
+          </Link>
+        </div>
+      )}
+
+      <nav className="flex-1 px-2 mt-2">
         <ul className="grid gap-1">
           {visibleItems.map((item) => {
             const active = item.match(pathname || "")

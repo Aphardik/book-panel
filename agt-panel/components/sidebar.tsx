@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Menu, X, LogOut, Moon, Sun, LayoutDashboard, BookOpen, BookPlus, Heart, Tags, Languages, ShoppingCart, Users, Activity, ChevronLeft, ChevronRight, FileSpreadsheet } from "lucide-react"
+import { Menu, X, LogOut, Moon, Sun, LayoutDashboard, BookOpen, BookPlus, Heart, Tags, Languages, ShoppingCart, Users, Activity, ChevronLeft, ChevronRight, FileSpreadsheet, ArrowRightLeft } from "lucide-react"
+import { useAuth } from "@/agt-panel/lib/auth-context"
 import { useTheme } from "next-themes"
 import { signOut } from "next-auth/react"
 import { useCart } from "@/agt-panel/lib/cart-context"
@@ -39,6 +40,8 @@ export default function Sidebar({ isAdmin, userName, isOpen: controlledIsOpen, o
   const [internalIsOpen, setInternalIsOpen] = useState(true)
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
+  const { user: authUser } = useAuth()
+  const userRole = authUser?.role || ""
 
   const isMobile = useIsMobile()
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen
@@ -142,6 +145,32 @@ export default function Sidebar({ isAdmin, userName, isOpen: controlledIsOpen, o
             {isOpen ? <ChevronLeft className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
         </div>
+
+        {/* Panel Switcher for Super Admin */}
+        {userRole === "super admin" && (
+          <div className="px-3 py-2 border-b border-border/50">
+            <Link
+              href="/book-panel/admin/dashboard"
+              className={cn(
+                "flex items-center gap-4 px-3 py-3 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-all group relative",
+                !isOpen && "justify-center px-0"
+              )}
+            >
+              <ArrowRightLeft size={22} className="shrink-0" />
+              {isOpen && (
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold leading-tight">Switch to</span>
+                  <span className="text-xs font-medium opacity-80">Book Panel</span>
+                </div>
+              )}
+              {!isOpen && (
+                <div className="absolute left-16 bg-primary text-primary-foreground text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                  Switch to Book Panel
+                </div>
+              )}
+            </Link>
+          </div>
+        )}
 
         {/* Menu Items */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-1">
