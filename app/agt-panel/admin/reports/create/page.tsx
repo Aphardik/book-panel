@@ -1,29 +1,17 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import {
-    Download,
-    Loader2,
-    BookOpen,
-    ShoppingCart,
-    Users,
-    Plus,
-    ArrowRight,
-    Database,
-    Check,
-    X,
-    ChevronRight,
-    Info,
-    Layers,
-    Table as TableIcon,
-    Save,
-    ArrowLeft
+    Download, Loader2, Plus, ArrowRight, Check, X,
+    ChevronRight, Layers, Table as TableIcon, Save, ArrowLeft,
+    Database, Link2, Eye, FileSpreadsheet, FileText,
+    BarChart2, RefreshCw, Search, ChevronDown, AlertCircle,
+    Hash, Type, Calendar, ToggleLeft, Columns, Filter
 } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/agt-panel/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/agt-panel/components/ui/card"
 import { Button } from "@/agt-panel/components/ui/button"
 import { useToast } from "@/agt-panel/components/ui/use-toast"
-import { booksApi, ordersApi, readersApi, reportsApi } from "@/agt-panel/lib/api-client"
-import { exportToCSV } from "@/agt-panel/lib/export-utils"
+import { reportsApi } from "@/agt-panel/lib/api-client"
 import { Separator } from "@/agt-panel/components/ui/separator"
 import { Badge } from "@/agt-panel/components/ui/badge"
 import { Input } from "@/agt-panel/components/ui/input"
@@ -31,410 +19,1053 @@ import { Label } from "@/agt-panel/components/ui/label"
 import { Checkbox } from "@/agt-panel/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/agt-panel/components/ui/table"
 import { cn } from "@/agt-panel/lib/utils"
+import { ScrollArea, ScrollBar } from "@/agt-panel/components/ui/scroll-area"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts"
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
+    Dialog, DialogContent, DialogFooter,
+    DialogHeader, DialogTitle, DialogTrigger,
 } from "@/agt-panel/components/ui/dialog"
+import {
+    Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/agt-panel/components/ui/tooltip"
+import {
+    Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from "@/agt-panel/components/ui/collapsible"
 import { useRouter } from "next/navigation"
 
-// --- Types & Schema Definition ---
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-type ObjectType = "books" | "orders" | "readers"
-
-interface Field {
-    id: string
+interface DBColumn {
+    id: string           // "table__column"
+    name: string
     label: string
     type: "string" | "number" | "boolean" | "date"
-    source: ObjectType | "masters"
-    path: string // Path in the returned object
+    pgType: string
+    isPrimaryKey: boolean
+    nullable: boolean
 }
 
-interface Relationship {
-    from: ObjectType
-    to: ObjectType
+interface DBTable {
+    name: string
     label: string
-    key: string // The key in 'from' that maps to 'to'
-    joinField: string // The field in 'to' that 'key' matches (usually id)
-    type: "1:1" | "1:N"
+    rowCount: number
+    columns: DBColumn[]
 }
 
-const SCHEMA: Record<ObjectType, { label: string; icon: any; fields: Field[] }> = {
-    books: {
-        label: "Books",
-        icon: BookOpen,
-        fields: [
-            { id: "b_id", label: "Book ID", type: "number", source: "books", path: "id" },
-            { id: "b_code", label: "Book Code", type: "string", source: "books", path: "bookCode" },
-            { id: "b_title", label: "Title", type: "string", source: "books", path: "title" },
-            { id: "b_author", label: "Author", type: "string", source: "books", path: "author" },
-            { id: "b_price", label: "Price", type: "number", source: "books", path: "price" },
-            { id: "b_total", label: "Total Copies", type: "number", source: "books", path: "totalCopies" },
-            { id: "b_avail", label: "Available Copies", type: "number", source: "books", path: "availableCopies" },
-            { id: "b_kabat", label: "Kabat No", type: "string", source: "books", path: "kabatNumber" },
-            { id: "b_year", label: "Year (AD)", type: "string", source: "books", path: "yearAD" },
-            { id: "b_vikram", label: "Vikram Samvat", type: "string", source: "books", path: "vikramSamvat" },
-            { id: "b_veer", label: "Veer Samvat", type: "string", source: "books", path: "veerSamvat" },
-            { id: "b_pages", label: "Pages", type: "number", source: "books", path: "pages" },
-            { id: "b_status", label: "Is Available", type: "boolean", source: "books", path: "isAvailable" },
-            { id: "b_cat", label: "Category", type: "string", source: "books", path: "Category.name" },
-            { id: "b_lang", label: "Language", type: "string", source: "books", path: "Language.name" },
-            { id: "b_vishay", label: "Vishay", type: "string", source: "books", path: "vishay" },
-            { id: "b_prakar", label: "Prakar", type: "string", source: "books", path: "prakar" },
-            { id: "b_size", label: "Book Size", type: "string", source: "books", path: "bookSize" },
-            { id: "b_edition", label: "Edition", type: "number", source: "books", path: "edition" },
-            { id: "b_sam", label: "Sampadak", type: "string", source: "books", path: "sampadak" },
-            { id: "b_tik", label: "Tikakar", type: "string", source: "books", path: "tikakar" },
-            { id: "b_prak", label: "Prakashak", type: "string", source: "books", path: "prakashak" },
-            { id: "b_anu", label: "Anuvadak", type: "string", source: "books", path: "anuvadak" },
-        ]
-    },
-    orders: {
-        label: "Orders",
-        icon: ShoppingCart,
-        fields: [
-            { id: "o_id", label: "Order ID", type: "number", source: "orders", path: "id" },
-            { id: "o_date", label: "Order Date", type: "date", source: "orders", path: "orderDate" },
-            { id: "o_status", label: "Status", type: "string", source: "orders", path: "status" },
-            { id: "o_shipping", label: "Shipping Details", type: "string", source: "orders", path: "shippingDetails" },
-            { id: "o_books", label: "Book Titles", type: "string", source: "orders", path: "OrderedBook.Book.title" },
-            { id: "o_count", label: "Total Items", type: "number", source: "orders", path: "OrderedBook.count" },
-        ]
-    },
-    readers: {
-        label: "Readers",
-        icon: Users,
-        fields: [
-            { id: "r_id", label: "Reader ID", type: "number", source: "readers", path: "id" },
-            { id: "r_fname", label: "First Name", type: "string", source: "readers", path: "firstname" },
-            { id: "r_lname", label: "Last Name", type: "string", source: "readers", path: "lastname" },
-            { id: "r_email", label: "Email", type: "string", source: "readers", path: "email" },
-            { id: "r_phone", label: "Phone", type: "string", source: "readers", path: "mobile" },
-            { id: "r_occ", label: "Occupation", type: "string", source: "readers", path: "occupation" },
-            { id: "r_city", label: "City", type: "string", source: "readers", path: "city" },
-            { id: "r_state", label: "State", type: "string", source: "readers", path: "state" },
-            { id: "r_pincode", label: "Pincode", type: "string", source: "readers", path: "pincode" },
-            { id: "r_address", label: "Address", type: "string", source: "readers", path: "address" },
-        ]
+interface DBRelationship {
+    fromTable: string
+    fromColumn: string
+    toTable: string
+    toColumn: string
+    label: string
+}
+
+interface SelectedColumn {
+    table: string
+    column: string
+    alias: string
+    label: string
+    type: DBColumn["type"]
+}
+
+interface ActiveJoin {
+    fromTable: string
+    fromColumn: string
+    toTable: string
+    toColumn: string
+}
+
+// ─── API helpers ─────────────────────────────────────────────────────────────
+
+const BASE = process.env.NEXT_PUBLIC_API_URL || "https://agt-api.adhyatmparivar.com";
+// const BASE = "http://localhost:3000";
+
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+    const res = await fetch(`${BASE}${path}`, {
+        headers: { "Content-Type": "application/json" },
+        ...options,
+    })
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }))
+        throw new Error(err.error ?? res.statusText)
     }
+    return res.json()
 }
 
-const RELATIONSHIPS: Relationship[] = [
-    { from: "orders", to: "readers", label: "Reader Stats", key: "readerId", joinField: "id", type: "1:1" },
-    { from: "readers", to: "orders", label: "Link Order History", key: "id", joinField: "readerId", type: "1:N" },
+// ─── Tiny helpers ────────────────────────────────────────────────────────────
+
+const TYPE_ICON: Record<DBColumn["type"], React.ReactNode> = {
+    number: <Hash className="h-3 w-3 text-blue-500" />,
+    string: <Type className="h-3 w-3 text-green-500" />,
+    date: <Calendar className="h-3 w-3 text-orange-500" />,
+    boolean: <ToggleLeft className="h-3 w-3 text-purple-500" />,
+}
+
+const TABLE_COLORS = [
+    "border-blue-500/40 bg-blue-500/5",
+    "border-emerald-500/40 bg-emerald-500/5",
+    "border-amber-500/40 bg-amber-500/5",
+    "border-rose-500/40 bg-rose-500/5",
+    "border-violet-500/40 bg-violet-500/5",
+    "border-cyan-500/40 bg-cyan-500/5",
 ]
+
+function tableColor(idx: number) { return TABLE_COLORS[idx % TABLE_COLORS.length] }
+
+function fmtCount(n: number) {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+    return String(n)
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function CreateReportPage() {
     const router = useRouter()
-    const [step, setStep] = useState(1)
-    const [baseObject, setBaseObject] = useState<ObjectType | null>(null)
-    const [selectedFields, setSelectedFields] = useState<string[]>([])
-    const [joinedObjects, setJoinedObjects] = useState<ObjectType[]>([])
-    const [data, setData] = useState<any[]>([])
-    const [isLoading, setIsLoading] = useState(false)
     const { toast } = useToast()
 
-    const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false)
+    // ── Schema state ──
+    const [tables, setTables] = useState<DBTable[]>([])
+    const [relationships, setRelationships] = useState<DBRelationship[]>([])
+    const [schemaLoading, setSchemaLoading] = useState(true)
+    const [schemaError, setSchemaError] = useState<string | null>(null)
+
+    // ── Report builder state ──
+    const [step, setStep] = useState<1 | 2 | 3>(1)
+    const [baseTable, setBaseTable] = useState<DBTable | null>(null)
+    const [selectedCols, setSelectedCols] = useState<SelectedColumn[]>([])
+    const [activeJoins, setActiveJoins] = useState<ActiveJoin[]>([])
+    const [searchCols, setSearchCols] = useState("")
+
+    // ── Preview / data state ──
+    const [previewRows, setPreviewRows] = useState<Record<string, any>[]>([])
+    const [previewLoading, setPreviewLoading] = useState(false)
+
+    // ── Save state ──
+    const [saveOpen, setSaveOpen] = useState(false)
     const [reportName, setReportName] = useState("")
     const [isSaving, setIsSaving] = useState(false)
 
-    // --- Helpers ---
+    // ── Export ──
+    const [isExporting, setIsExporting] = useState(false)
 
-    const getNestedValue = (obj: any, path: string) => {
-        if (!obj) return null;
-        const isOrderRelated = path.includes('OrderedBook') || path.includes('items') || path.includes('order');
-        if (isOrderRelated) {
-            const booksArray = obj.OrderedBook || obj.orderedBook || obj.items || obj.OrderedItems || obj.OrderItems || [];
-            if (path.endsWith('.count')) return booksArray.length;
-            if (path.includes('title') || path.includes('Book')) {
-                const getTitles = (items: any[]) => items.map((b: any) => b.Book?.title || b.book?.title || b.title || b.bookTitle || "N/A").filter(t => t !== "N/A").join(", ");
-                if (Array.isArray(booksArray)) return getTitles(booksArray) || "N/A";
-            }
-        }
-        if (Array.isArray(obj)) return obj.map(o => getNestedValue(o, path)).filter(Boolean).join(", ");
-        const value = path.split('.').reduce((acc, part) => acc && acc[part], obj);
-        if (Array.isArray(value)) return value.join(", ");
-        return value;
-    }
+    // ── Table search on step 1 ──
+    const [tableSearch, setTableSearch] = useState("")
 
-    const allAvailableFields = useMemo(() => {
-        if (!baseObject) return []
-        let fields = [...SCHEMA[baseObject].fields]
-        joinedObjects.forEach(obj => {
-            const joinedFields = SCHEMA[obj].fields.map(f => ({ ...f, label: `${SCHEMA[obj].label}: ${f.label}`, id: `${obj}_${f.id}` }))
-            fields = [...fields, ...joinedFields]
-        })
-        return fields
-    }, [baseObject, joinedObjects])
+    // ─── Load schema on mount ────────────────────────────────────────────────
 
-    // --- Actions ---
-
-    const handleSaveReport = async (saveData: boolean = false) => {
-        if (!reportName.trim() || !baseObject) return
-        setIsSaving(true)
+    const loadSchema = useCallback(async () => {
+        setSchemaLoading(true)
+        setSchemaError(null)
         try {
-            await reportsApi.create({
-                name: reportName,
-                configuration: {
-                    baseObject,
-                    selectedFields,
-                    joinedObjects,
-                    isStatic: saveData,
-                    savedData: saveData ? data.slice(0, 1000).map(item => {
-                        const row: any = {}
-                        selectedFields.forEach(fId => {
-                            const field = allAvailableFields.find(f => f.id === fId)
-                            if (field) {
-                                if (field.source !== baseObject) {
-                                    const joinedItem = item[`__joined_${field.source}`]
-                                    row[fId] = joinedItem ? getNestedValue(joinedItem, field.path) : "N/A"
-                                } else {
-                                    row[fId] = getNestedValue(item, field.path)
-                                }
-                                row[`__label_${fId}`] = field.label
-                            }
-                        })
-                        return row
-                    }) : null,
-                    savedAt: new Date().toISOString()
-                }
-            })
-            toast({ title: "Success", description: "Report saved successfully" })
-            router.push("/agt-panel/admin/reports")
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to save report", variant: "destructive" })
+            const [tbls, rels] = await Promise.all([
+                apiFetch<DBTable[]>("/api/schema/tables"),
+                apiFetch<DBRelationship[]>("/api/schema/relationships"),
+            ])
+            setTables(tbls)
+            setRelationships(rels)
+        } catch (e: any) {
+            setSchemaError(e.message)
+            toast({ title: "Schema Error", description: e.message, variant: "destructive" })
         } finally {
-            setIsSaving(false)
+            setSchemaLoading(false)
         }
+    }, [toast])
+
+    useEffect(() => { loadSchema() }, [loadSchema])
+
+    // ─── Derived data ────────────────────────────────────────────────────────
+
+    /** Tables that can be joined FROM any currently included table */
+    const joinableTables = useMemo(() => {
+        if (!baseTable) return []
+        const includedTableNames = new Set<string>([baseTable.name, ...activeJoins.map(j => j.toTable)])
+
+        return tables.filter(t => {
+            // Must not be already included
+            if (includedTableNames.has(t.name)) return false
+
+            // Must have a relationship to ANY included table
+            return relationships.some(r =>
+                (includedTableNames.has(r.fromTable) && r.toTable === t.name) ||
+                (includedTableNames.has(r.toTable) && r.fromTable === t.name)
+            )
+        })
+    }, [baseTable, activeJoins, tables, relationships])
+
+    /** Find the FK relationship between a target table and ANY table currently in the report */
+    function findRelationship(targetTableName: string): DBRelationship | undefined {
+        if (!baseTable) return undefined
+        const includedTableNames = [baseTable.name, ...activeJoins.map(j => j.toTable)]
+
+        // Prefer joins from the base table if possible, otherwise any included table
+        return relationships.find(r =>
+            (includedTableNames.includes(r.fromTable) && r.toTable === targetTableName) ||
+            (includedTableNames.includes(r.toTable) && r.fromTable === targetTableName)
+        )
     }
 
-    const handleObjectSelect = (obj: ObjectType) => {
-        setBaseObject(obj)
-        setSelectedFields(SCHEMA[obj].fields.slice(0, 4).map(f => f.id))
+    /** All columns available for selection (base + joined tables) */
+    const availableCols = useMemo(() => {
+        const joinedTableNames = activeJoins.map(j => j.toTable)
+        const joinedTables = tables.filter(t => joinedTableNames.includes(t.name))
+        const allTbls = baseTable ? [baseTable, ...joinedTables] : []
+        let cols: (DBColumn & { tableName: string; tableLabel: string })[] = []
+        allTbls.forEach(t => {
+            t.columns.forEach(c => cols.push({ ...c, tableName: t.name, tableLabel: t.label }))
+        })
+        if (searchCols.trim()) {
+            const q = searchCols.toLowerCase()
+            cols = cols.filter(c => c.label.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || c.tableName.toLowerCase().includes(q))
+        }
+        return cols
+    }, [baseTable, activeJoins, tables, searchCols])
+
+    const isColSelected = (tableName: string, colName: string) =>
+        selectedCols.some(c => c.table === tableName && c.column === colName)
+
+    // ─── Actions ─────────────────────────────────────────────────────────────
+
+    function handleSelectBaseTable(tbl: DBTable) {
+        setBaseTable(tbl)
+        setActiveJoins([])
+        // Auto-select first 5 non-FK columns
+        const autoSelected: SelectedColumn[] = tbl.columns.slice(0, 5).map(c => ({
+            table: tbl.name, column: c.name,
+            alias: `${tbl.name}__${c.name}`,
+            label: `${tbl.label}: ${c.label}`,
+            type: c.type,
+        }))
+        setSelectedCols(autoSelected)
         setStep(2)
     }
 
-    const toggleField = (fieldId: string) => {
-        setSelectedFields(prev => prev.includes(fieldId) ? prev.filter(id => id !== fieldId) : [...prev, fieldId])
-    }
-
-    const toggleJoin = (obj: ObjectType) => {
-        setJoinedObjects(prev => {
-            if (prev.includes(obj)) {
-                setSelectedFields(s => s.filter(id => !id.startsWith(`${obj}_`)))
-                return prev.filter(o => o !== obj)
-            } else {
-                return [...prev, obj]
-            }
+    function toggleColumn(tableName: string, tableLabel: string, col: DBColumn) {
+        setSelectedCols(prev => {
+            const exists = prev.some(c => c.table === tableName && c.column === col.name)
+            if (exists) return prev.filter(c => !(c.table === tableName && c.column === col.name))
+            return [...prev, {
+                table: tableName,
+                column: col.name,
+                alias: `${tableName}__${col.name}`,
+                label: `${tableLabel}: ${col.label}`,
+                type: col.type,
+            }]
         })
     }
 
-    const fetchReportData = async () => {
-        if (!baseObject) return
-        setIsLoading(true)
-        try {
-            const fetchBase = async (type: ObjectType) => {
-                const resp = await (type === "books" ? booksApi.getAll({ limit: 1000 }) : type === "orders" ? ordersApi.getAll({ limit: 1000 }) : readersApi.getAll({ limit: 1000 }));
-                if (Array.isArray(resp)) return resp;
-                const potentialData = (resp as any)[type] || (resp as any).data || (resp as any).items || (resp as any).results;
-                return Array.isArray(potentialData) ? potentialData : Object.values(resp as object).find(val => Array.isArray(val)) || [];
-            }
-            const baseData = await fetchBase(baseObject)
-            let finalData = [...baseData]
-            for (const objType of joinedObjects) {
-                const rel = RELATIONSHIPS.find(r => r.from === baseObject && r.to === objType)
-                if (rel) {
-                    const joinedData = await fetchBase(objType)
-                    finalData = finalData.map(item => {
-                        const joinVal = item[rel.key]
-                        const related = rel.type === '1:1' ? joinedData.find(j => String(j[rel.joinField]) === String(joinVal)) : joinedData.filter(j => String(j[rel.joinField]) === String(joinVal));
-                        return { ...item, [`__joined_${objType}`]: related }
+    function toggleJoin(joinedTable: DBTable) {
+        if (!baseTable) return;
+
+        setActiveJoins(prev => {
+            const exists = prev.some(j => j.toTable === joinedTable.name)
+            if (exists) {
+                // Recursive removal: remove this join AND any joins that depend on it
+                const toRemove = new Set<string>([joinedTable.name])
+                let changed = true
+                while (changed) {
+                    changed = false
+                    prev.forEach(j => {
+                        if (toRemove.has(j.fromTable) && !toRemove.has(j.toTable)) {
+                            toRemove.add(j.toTable)
+                            changed = true
+                        }
                     })
                 }
+
+                setSelectedCols(s => s.filter(c => !toRemove.has(c.table)))
+                return prev.filter(j => !toRemove.has(j.toTable))
             }
-            setData(finalData)
+
+            // Add join ... (rest of the logic)
+            const includedTableNames = [baseTable.name, ...prev.map(j => j.toTable)]
+            const sourceTable = includedTableNames.find(tn =>
+                relationships.some(r =>
+                    (r.fromTable === tn && r.toTable === joinedTable.name) ||
+                    (r.toTable === tn && r.fromTable === joinedTable.name)
+                )
+            )
+
+            if (!sourceTable) return prev
+
+            const actualRel = relationships.find(r =>
+                (r.fromTable === sourceTable && r.toTable === joinedTable.name) ||
+                (r.toTable === sourceTable && r.fromTable === joinedTable.name)
+            )
+
+            if (!actualRel) return prev
+
+            const join: ActiveJoin = actualRel.fromTable === sourceTable
+                ? { fromTable: actualRel.fromTable, fromColumn: actualRel.fromColumn, toTable: actualRel.toTable, toColumn: actualRel.toColumn }
+                : { fromTable: actualRel.toTable, fromColumn: actualRel.toColumn, toTable: actualRel.fromTable, toColumn: actualRel.fromColumn }
+
+            return [...prev, join]
+        })
+    }
+
+    function isTableJoined(tblName: string) {
+        return activeJoins.some(j => j.toTable === tblName || j.fromTable === tblName)
+    }
+
+    async function handlePreview() {
+        if (!baseTable || selectedCols.length === 0) return
+        setPreviewLoading(true)
+        try {
+            const body = {
+                baseTable: baseTable.name,
+                selectedColumns: selectedCols.map(c => ({ table: c.table, column: c.column, alias: c.alias })),
+                joins: activeJoins,
+                limit: 100,
+            }
+            const res = await apiFetch<{ rows: Record<string, any>[] }>("/api/schema/preview", {
+                method: "POST",
+                body: JSON.stringify(body),
+            })
+            setPreviewRows(res.rows)
             setStep(3)
-        } catch (error) {
-            toast({ title: "Error", description: "Failed to fetch data", variant: "destructive" })
+        } catch (e: any) {
+            toast({ title: "Preview failed", description: e.message, variant: "destructive" })
         } finally {
-            setIsLoading(false)
+            setPreviewLoading(false)
         }
     }
 
-    const handleExport = () => {
-        if (data.length === 0) return
-        const exportData = data.map(item => {
-            const row: Record<string, any> = {}
-            selectedFields.forEach(fId => {
-                const fieldConfig = allAvailableFields.find(f => f.id === fId)
-                if (fieldConfig) {
-                    const val = fieldConfig.source !== baseObject ? getNestedValue(item[`__joined_${fieldConfig.source}`], fieldConfig.path) : getNestedValue(item, fieldConfig.path);
-                    row[fieldConfig.label] = val
-                }
+    async function handleExportCSV() {
+        if (!baseTable) return
+        setIsExporting(true)
+        try {
+            const body = {
+                baseTable: baseTable.name,
+                selectedColumns: selectedCols.map(c => ({ table: c.table, column: c.column, alias: c.alias })),
+                joins: activeJoins,
+            }
+            const res = await apiFetch<{ rows: Record<string, any>[] }>("/api/schema/export", {
+                method: "POST",
+                body: JSON.stringify(body),
             })
-            return row
-        })
-        exportToCSV(exportData, `Report_${baseObject}`)
+
+            // Build CSV client-side
+            const headers = selectedCols.map(c => c.label)
+            const aliasMap = Object.fromEntries(selectedCols.map(c => [c.alias, c.label]))
+            const csvRows = res.rows.map(row =>
+                selectedCols.map(c => {
+                    const val = row[c.alias] ?? ""
+                    const str = String(val).replace(/"/g, '""')
+                    return `"${str}"`
+                }).join(",")
+            )
+            const csvContent = [headers.join(","), ...csvRows].join("\n")
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement("a")
+            a.href = url
+            a.download = `report_${baseTable.name}_${Date.now()}.csv`
+            a.click()
+            URL.revokeObjectURL(url)
+            toast({ title: "Export ready", description: `${res.rows.length} rows downloaded.` })
+        } catch (e: any) {
+            toast({ title: "Export failed", description: e.message, variant: "destructive" })
+        } finally {
+            setIsExporting(false)
+        }
     }
 
+    async function handleExportExcel() {
+        if (!baseTable) return
+        setIsExporting(true)
+        try {
+            // Dynamic import to avoid SSR issues
+            const XLSX = await import("xlsx")
+            const body = {
+                baseTable: baseTable.name,
+                selectedColumns: selectedCols.map(c => ({ table: c.table, column: c.column, alias: c.alias })),
+                joins: activeJoins,
+            }
+            const res = await apiFetch<{ rows: Record<string, any>[] }>("/api/schema/export", {
+                method: "POST",
+                body: JSON.stringify(body),
+            })
+            const sheetData = res.rows.map(row =>
+                Object.fromEntries(selectedCols.map(c => [c.label, row[c.alias] ?? ""]))
+            )
+            const ws = XLSX.utils.json_to_sheet(sheetData)
+            const wb = XLSX.utils.book_new()
+            XLSX.utils.book_append_sheet(wb, ws, baseTable.label)
+            XLSX.writeFile(wb, `report_${baseTable.name}_${Date.now()}.xlsx`)
+            toast({ title: "Excel ready", description: `${res.rows.length} rows exported.` })
+        } catch (e: any) {
+            toast({ title: "Excel export failed", description: e.message, variant: "destructive" })
+        } finally {
+            setIsExporting(false)
+        }
+    }
+
+    async function handleSaveReport(withData: boolean) {
+        if (!reportName.trim() || !baseTable) return
+        setIsSaving(true)
+        try {
+            const configuration: any = {
+                baseTable: baseTable.name,
+                baseTableLabel: baseTable.label,
+                selectedColumns: selectedCols,
+                joins: activeJoins,
+                isDynamic: !withData,
+                createdAt: new Date().toISOString(),
+            }
+            if (withData) {
+                configuration.savedData = previewRows
+                configuration.savedAt = new Date().toISOString()
+            }
+            await reportsApi.create({ name: reportName, configuration })
+            toast({ title: "Report saved!", description: reportName })
+            router.push("/agt-panel/admin/reports")
+        } catch (e: any) {
+            toast({ title: "Save failed", description: e.message, variant: "destructive" })
+        } finally {
+            setIsSaving(false)
+            setSaveOpen(false)
+        }
+    }
+
+    // ─── Render helpers ───────────────────────────────────────────────────────
+
+    const filteredTables = useMemo(() =>
+        tables.filter(t => t.name.toLowerCase().includes(tableSearch.toLowerCase()) ||
+            t.label.toLowerCase().includes(tableSearch.toLowerCase())),
+        [tables, tableSearch]
+    )
+
+    const chartConfig = useMemo(() => {
+        if (previewRows.length === 0 || selectedCols.length === 0) return null;
+        // Don't use book_code for charting if possible
+        const stringCol = selectedCols.find(c => c.type === "string" && !c.column.toLowerCase().includes("book_code") && !c.column.toLowerCase().includes("bookcode"))?.alias
+            || selectedCols.find(c => c.type === "string")?.alias;
+
+        const numberCol = selectedCols.find(c => c.type === "number" && !c.column.toLowerCase().includes("book_code") && !c.column.toLowerCase().includes("bookcode"))?.alias;
+
+        if (!stringCol) return null; // Need grouping
+
+        const dataMap: Record<string, number> = {};
+        previewRows.forEach(r => {
+            const key = String(r[stringCol] || "Unknown");
+            const val = numberCol ? Number(r[numberCol] || 0) : 1;
+            dataMap[key] = (dataMap[key] || 0) + val;
+        });
+
+        const data = Object.entries(dataMap)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 15); // Top 15 to avoid crowding
+
+        return {
+            data,
+            xAxisKey: stringCol,
+            yAxisKey: numberCol || "Count",
+            xLabel: selectedCols.find(c => c.alias === stringCol)?.label || stringCol,
+            yLabel: numberCol ? selectedCols.find(c => c.alias === numberCol)?.label : "Record Count",
+        };
+    }, [previewRows, selectedCols]);
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // RENDER
+    // ═══════════════════════════════════════════════════════════════════════════
     return (
-        <div className="container mx-auto px-4">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => step > 1 ? setStep(step - 1) : router.push("/agt-panel/admin/reports")}>
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Report Builder</h1>
-                        <p className="text-muted-foreground text-sm mt-1">
-                            {step === 1 ? "Select the primary object for your report." : step === 2 ? "Pick columns and link related data." : "Review and save your generated report."}
-                        </p>
+        <TooltipProvider>
+            <div className="container mx-auto px-4 py-6 max-w-7xl">
+
+                {/* ── Header ── */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                    <div className="flex items-center gap-4">
+                        <Button variant="ghost" size="icon" onClick={() =>
+                            step > 1 ? setStep((step - 1) as any) : router.push("/agt-panel/admin/reports")
+                        }>
+                            <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                        <div>
+                            <h1 className="text-2xl font-bold tracking-tight">Dynamic Report Builder</h1>
+                            <p className="text-muted-foreground text-sm mt-0.5">
+                                {step === 1 && "Select a base table — schema auto-detected from your database"}
+                                {step === 2 && `Configuring report on · ${baseTable?.label}`}
+                                {step === 3 && "Preview complete — review, export, or save"}
+                            </p>
+                        </div>
                     </div>
-                </div>
-            </div>
 
-            {step === 1 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {(Object.entries(SCHEMA) as [ObjectType, any][]).map(([key, config]) => (
-                        <Card key={key} className="cursor-pointer hover:border-primary transition-colors border-muted shadow-sm" onClick={() => handleObjectSelect(key)}>
-                            <CardHeader>
-                                <div className="p-3 rounded-lg bg-primary/10 w-fit text-primary mb-2">
-                                    <config.icon size={24} />
+                    {/* Step indicator */}
+                    <div className="flex items-center gap-2 text-sm">
+                        {[
+                            { n: 1, label: "Choose Table" },
+                            { n: 2, label: "Select Columns" },
+                            { n: 3, label: "Preview & Export" },
+                        ].map(({ n, label }, i) => (
+                            <div key={n} className="flex items-center gap-2">
+                                <div className={cn(
+                                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border",
+                                    step === n ? "bg-primary text-primary-foreground border-primary"
+                                        : step > n ? "bg-emerald-500 text-white border-emerald-500"
+                                            : "bg-muted text-muted-foreground border-border"
+                                )}>
+                                    {step > n ? <Check className="h-3 w-3" /> : n}
                                 </div>
-                                <CardTitle>{config.label}</CardTitle>
-                                <CardDescription>Reports from {config.label.toLowerCase()} records.</CardDescription>
-                            </CardHeader>
-                            <CardFooter>
-                                <Button variant="ghost" className="w-full justify-between">
-                                    Select Object <ArrowRight size={16} />
-                                </Button>
-                            </CardFooter>
-                        </Card>
-                    ))}
-                </div>
-            )}
-
-            {step === 2 && baseObject && (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    <div className="lg:col-span-4 space-y-8">
-                        <section className="space-y-4">
-                            <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                                <TableIcon size={14} /> {SCHEMA[baseObject].label} Columns
-                            </h3>
-                            <div className="grid gap-2 border rounded-lg p-4 bg-muted/30">
-                                {SCHEMA[baseObject].fields.map(field => (
-                                    <div key={field.id} className="flex items-center space-x-3">
-                                        <Checkbox id={field.id} checked={selectedFields.includes(field.id)} onCheckedChange={() => toggleField(field.id)} />
-                                        <Label htmlFor={field.id} className="text-sm cursor-pointer">{field.label}</Label>
-                                    </div>
-                                ))}
+                                <span className={cn("hidden sm:block text-xs",
+                                    step === n ? "text-foreground font-medium" : "text-muted-foreground"
+                                )}>{label}</span>
+                                {i < 2 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
                             </div>
-                        </section>
-
-                        {RELATIONSHIPS.filter(r => r.from === baseObject).map(rel => (
-                            <section key={rel.to} className="space-y-4">
-                                <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                                    <Layers size={14} /> {rel.label}
-                                </h3>
-                                <div className="space-y-4">
-                                    <Button variant={joinedObjects.includes(rel.to) ? "default" : "outline"} className="w-full justify-between" onClick={() => toggleJoin(rel.to)}>
-                                        Link {SCHEMA[rel.to].label} Data <Plus size={16} className={cn(joinedObjects.includes(rel.to) && "rotate-45")} />
-                                    </Button>
-                                    {joinedObjects.includes(rel.to) && (
-                                        <div className="grid gap-2 border rounded-lg p-4 bg-muted/30">
-                                            {SCHEMA[rel.to].fields.map(field => {
-                                                const fId = `${rel.to}_${field.id}`
-                                                return (
-                                                    <div key={fId} className="flex items-center space-x-3">
-                                                        <Checkbox id={fId} checked={selectedFields.includes(fId)} onCheckedChange={() => toggleField(fId)} />
-                                                        <Label htmlFor={fId} className="text-sm cursor-pointer">{field.label}</Label>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            </section>
                         ))}
                     </div>
-
-                    <div className="lg:col-span-8">
-                        <Card className="shadow-sm border-muted">
-                            <CardHeader className="bg-muted/30">
-                                <CardTitle className="text-lg">Selected Columns ({selectedFields.length})</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6">
-                                <div className="flex flex-wrap gap-2">
-                                    {selectedFields.map(fId => (
-                                        <Badge key={fId} variant="secondary" className="px-3 py-1.5 flex gap-2">
-                                            {allAvailableFields.find(f => f.id === fId)?.label}
-                                            <button onClick={() => toggleField(fId)}><X size={12} /></button>
-                                        </Badge>
-                                    ))}
-                                    {selectedFields.length === 0 && <p className="text-sm text-muted-foreground">No columns selected.</p>}
-                                </div>
-                            </CardContent>
-                            <CardFooter className="border-t p-6 flex justify-between">
-                                <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
-                                <Button disabled={selectedFields.length === 0 || isLoading} onClick={fetchReportData}>
-                                    {isLoading ? <Loader2 className="animate-spin mr-2" /> : <Plus className="mr-2" />} Preview Report
-                                </Button>
-                            </CardFooter>
-                        </Card>
-                    </div>
                 </div>
-            )}
 
-            {step === 3 && (
-                <div className="space-y-6">
-                    <div className="flex justify-between items-center bg-muted/20 p-4 rounded-lg border">
-                        <div className="flex items-center gap-3">
-                            <Check className="text-emerald-600 bg-emerald-50 rounded-full p-1" />
-                            <span className="font-bold">Report Preview Ready</span>
-                        </div>
-                        <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => setStep(2)}>Modify Columns</Button>
-                            <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
-                                <DialogTrigger asChild><Button size="sm"><Save className="mr-2 h-4 w-4" /> Save Data Snapshot</Button></DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader><DialogTitle>Name this Snapshot</DialogTitle></DialogHeader>
-                                    <div className="py-4"><Label>Report Name</Label><Input value={reportName} onChange={e => setReportName(e.target.value)} placeholder="e.g. Monthly Readers" /></div>
-                                    <DialogFooter>
-                                        <Button variant="outline" onClick={() => handleSaveReport(false)} disabled={isSaving || !reportName}>Save as Template</Button>
-                                        <Button onClick={() => handleSaveReport(true)} disabled={isSaving || !reportName}>Save with Data</Button>
-                                    </DialogFooter>
-                                </DialogContent>
-                            </Dialog>
-                            <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-2 h-4 w-4" /> Export CSV</Button>
-                        </div>
-                    </div>
+                {/* ══════════════════════════════════════════════════════════════
+                STEP 1 — Choose base table
+            ══════════════════════════════════════════════════════════════ */}
+                {step === 1 && (
+                    <div className="space-y-6">
+                        {/* Schema error */}
+                        {schemaError && (
+                            <Card className="border-destructive bg-destructive/5">
+                                <CardContent className="flex items-center gap-3 pt-5 pb-5">
+                                    <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+                                    <div className="flex-1">
+                                        <p className="font-medium text-destructive">Failed to load schema</p>
+                                        <p className="text-sm text-muted-foreground">{schemaError}</p>
+                                    </div>
+                                    <Button variant="outline" size="sm" onClick={loadSchema}>
+                                        <RefreshCw className="h-3 w-3 mr-1" /> Retry
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        )}
 
-                    <Card className="shadow-sm border-muted overflow-hidden">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    {selectedFields.map(fId => <TableHead key={fId} className="font-bold">{allAvailableFields.find(f => f.id === fId)?.label}</TableHead>)}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {data.slice(0, 50).map((item, idx) => (
-                                    <TableRow key={idx}>
-                                        {selectedFields.map(fId => {
-                                            const f = allAvailableFields.find(f => f.id === fId)
-                                            const val = f?.source !== baseObject ? getNestedValue(item[`__joined_${f?.source}`], f?.path || '') : getNestedValue(item, f?.path || '');
-                                            return <TableCell key={fId}>{String(val ?? "N/A")}</TableCell>
-                                        })}
-                                    </TableRow>
+                        {/* Search + Refresh */}
+                        <div className="flex gap-3">
+                            <div className="relative flex-1 max-w-sm">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search tables..."
+                                    className="pl-9"
+                                    value={tableSearch}
+                                    onChange={e => setTableSearch(e.target.value)}
+                                />
+                            </div>
+                            <Button variant="outline" size="icon" onClick={loadSchema} disabled={schemaLoading}>
+                                <RefreshCw className={cn("h-4 w-4", schemaLoading && "animate-spin")} />
+                            </Button>
+                        </div>
+
+                        {/* Summary bar */}
+                        {!schemaLoading && !schemaError && (
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                <span className="flex items-center gap-1.5">
+                                    <Database className="h-3.5 w-3.5" />
+                                    <strong className="text-foreground">{tables.length}</strong> tables detected
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                    <Link2 className="h-3.5 w-3.5" />
+                                    <strong className="text-foreground">{relationships.length}</strong> relationships
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Table grid */}
+                        {schemaLoading ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Array.from({ length: 6 }).map((_, i) => (
+                                    <Card key={i} className="animate-pulse">
+                                        <CardHeader className="pb-2">
+                                            <div className="h-8 w-8 rounded-lg bg-muted mb-2" />
+                                            <div className="h-4 w-32 bg-muted rounded" />
+                                            <div className="h-3 w-24 bg-muted rounded mt-1" />
+                                        </CardHeader>
+                                        <CardFooter><div className="h-8 w-full bg-muted rounded" /></CardFooter>
+                                    </Card>
                                 ))}
-                            </TableBody>
-                        </Table>
-                    </Card>
-                </div>
-            )}
-        </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {filteredTables.map((tbl, idx) => {
+                                    const relCount = relationships.filter(
+                                        r => r.fromTable === tbl.name || r.toTable === tbl.name
+                                    ).length
+                                    return (
+                                        <Card
+                                            key={tbl.name}
+                                            className={cn(
+                                                "cursor-pointer border-2 hover:border-primary/60 hover:shadow-md transition-all duration-200 group",
+                                                tableColor(idx)
+                                            )}
+                                            onClick={() => handleSelectBaseTable(tbl)}
+                                        >
+                                            <CardHeader className="pb-3">
+                                                <div className="flex items-start justify-between">
+                                                    <div className="p-2.5 rounded-lg bg-background/80 border">
+                                                        <Database className="h-5 w-5 text-primary" />
+                                                    </div>
+                                                    <Badge variant="secondary" className="text-xs font-mono">
+                                                        {fmtCount(tbl.rowCount)} rows
+                                                    </Badge>
+                                                </div>
+                                                <CardTitle className="text-base mt-3 group-hover:text-primary transition-colors">
+                                                    {tbl.label}
+                                                </CardTitle>
+                                                <CardDescription className="font-mono text-xs">{tbl.name}</CardDescription>
+                                            </CardHeader>
+                                            <CardContent className="pt-0 pb-3">
+                                                <div className="flex gap-3 text-xs text-muted-foreground">
+                                                    <span className="flex items-center gap-1">
+                                                        <Columns className="h-3 w-3" /> {tbl.columns.length} columns
+                                                    </span>
+                                                    {relCount > 0 && (
+                                                        <div className="mt-2 flex flex-wrap gap-1">
+                                                            {relationships
+                                                                .filter(r => r.fromTable === tbl.name || r.toTable === tbl.name)
+                                                                .map(r => {
+                                                                    const targetName = r.fromTable === tbl.name ? r.toTable : r.fromTable;
+                                                                    const targetTbl = tables.find(t => t.name === targetName);
+                                                                    return targetTbl ? (
+                                                                        <Badge key={targetName} variant="outline" className="text-[9px] px-1 py-0 opacity-70">
+                                                                            {targetTbl.label}
+                                                                        </Badge>
+                                                                    ) : null;
+                                                                })
+                                                                .slice(0, 3)}
+                                                            {relCount > 3 && <span className="text-[9px] text-muted-foreground">+{relCount - 3} more</span>}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </CardContent>
+                                            <CardFooter className="pt-0">
+                                                <Button variant="ghost" className="w-full justify-between text-xs h-8 group-hover:bg-primary/10 transition-colors">
+                                                    Build report <ArrowRight className="h-3 w-3" />
+                                                </Button>
+                                            </CardFooter>
+                                        </Card>
+                                    )
+                                })}
+                                {filteredTables.length === 0 && !schemaLoading && (
+                                    <div className="col-span-full text-center py-12 text-muted-foreground">
+                                        <Database className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                                        <p>No tables found matching "{tableSearch}"</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ══════════════════════════════════════════════════════════════
+                STEP 2 — Select columns & joins
+            ══════════════════════════════════════════════════════════════ */}
+                {step === 2 && baseTable && (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                        {/* ── LEFT: Joins + Column picker ── */}
+                        <div className="lg:col-span-5 space-y-5">
+
+                            {/* Join Related Tables */}
+                            <Card className="border-primary/20 bg-primary/5">
+                                <CardHeader className="pb-3 px-4 pt-4">
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-sm font-bold flex items-center gap-2">
+                                            <Link2 className="h-4 w-4" />
+                                            Linked Tables
+                                        </CardTitle>
+                                        <Badge variant="outline" className="bg-background text-[10px]">{joinableTables.length} Discoverable</Badge>
+                                    </div>
+                                    <CardDescription className="text-[10px] uppercase font-black tracking-widest leading-none mt-1 opacity-60">
+                                        Chain tables to combine data
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="px-3 pb-3 pt-0">
+                                    <div className="space-y-1.5">
+                                        {joinableTables.length === 0 && (
+                                            <p className="text-[10px] text-center text-muted-foreground p-4 italic">
+                                                No more linkable tables found.
+                                            </p>
+                                        )}
+                                        {joinableTables.map((jt) => {
+                                            const rel = findRelationship(jt.name)
+                                            return (
+                                                <div
+                                                    key={jt.name}
+                                                    className="flex items-center justify-between p-2 rounded-lg bg-background border hover:border-primary transition-all cursor-pointer group"
+                                                    onClick={() => toggleJoin(jt)}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-colors">
+                                                            <Plus size={14} />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs font-black leading-none">{jt.label}</p>
+                                                            {rel && (
+                                                                <p className="text-[9px] text-muted-foreground font-mono mt-1">
+                                                                    via {rel.fromTable}.{rel.fromColumn}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[9px] font-black uppercase text-muted-foreground">{jt.rowCount} Rows</p>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Active Links Visualization */}
+                            {activeJoins.length > 0 && (
+                                <div className="space-y-1.5 px-1">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1">
+                                        <Check size={10} /> Active Links
+                                    </p>
+                                    {activeJoins.map((j) => (
+                                        <div key={j.toTable} className="flex items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                                            <Link2 size={12} className="text-emerald-500" />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[10px] font-black uppercase truncate leading-none">{j.toTable}</p>
+                                                <p className="text-[8px] text-muted-foreground uppercase leading-none mt-1">Join: {j.fromTable}</p>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 hover:text-red-500"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleJoin(tables.find(t => t.name === j.toTable)!);
+                                                }}
+                                            >
+                                                <X size={10} />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Column picker */}
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm flex items-center gap-2">
+                                        <Columns className="h-4 w-4 text-primary" />
+                                        Available Columns
+                                        <Badge variant="secondary" className="text-xs">{availableCols.length}</Badge>
+                                    </CardTitle>
+                                    <div className="relative mt-1">
+                                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Filter columns..."
+                                            className="pl-8 h-8 text-xs"
+                                            value={searchCols}
+                                            onChange={e => setSearchCols(e.target.value)}
+                                        />
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="pt-0">
+                                    <ScrollArea className="h-72 pr-2">
+                                        {/* Group by table */}
+                                        {[baseTable, ...tables.filter(t => isTableJoined(t.name))].map((tbl, ti) => {
+                                            const cols = availableCols.filter(c => c.tableName === tbl.name)
+                                            if (cols.length === 0) return null
+                                            return (
+                                                <Collapsible key={tbl.name} defaultOpen={ti === 0}>
+                                                    <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 hover:bg-muted/50 rounded text-xs font-semibold text-muted-foreground uppercase tracking-wider group">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <TableIcon className="h-3 w-3" /> {tbl.label}
+                                                        </span>
+                                                        <ChevronDown className="h-3 w-3 transition-transform group-data-[state=open]:rotate-180" />
+                                                    </CollapsibleTrigger>
+                                                    <CollapsibleContent>
+                                                        <div className="space-y-0.5 mb-2">
+                                                            {cols.map(col => (
+                                                                <div
+                                                                    key={col.id}
+                                                                    className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-muted/40 cursor-pointer"
+                                                                    onClick={() => toggleColumn(col.tableName, col.tableLabel, col)}
+                                                                >
+                                                                    <Checkbox
+                                                                        checked={isColSelected(col.tableName, col.name)}
+                                                                        onCheckedChange={() => toggleColumn(col.tableName, col.tableLabel, col)}
+                                                                        className="pointer-events-none"
+                                                                    />
+                                                                    <span className="shrink-0">{TYPE_ICON[col.type]}</span>
+                                                                    <span className="text-xs flex-1 truncate">{col.label}</span>
+                                                                    {col.isPrimaryKey && (
+                                                                        <Badge variant="outline" className="text-[9px] px-1 py-0">PK</Badge>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </CollapsibleContent>
+                                                </Collapsible>
+                                            )
+                                        })}
+                                    </ScrollArea>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* ── RIGHT: Selected columns + action ── */}
+                        <div className="lg:col-span-7 space-y-5">
+                            <Card className="sticky top-4">
+                                <CardHeader>
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="text-base flex items-center gap-2">
+                                            <Eye className="h-4 w-4 text-primary" />
+                                            Report Columns
+                                            <Badge className="text-xs">{selectedCols.length}</Badge>
+                                        </CardTitle>
+                                        {selectedCols.length > 0 && (
+                                            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setSelectedCols([])}>
+                                                Clear all
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <CardDescription className="text-xs">
+                                        Drag to reorder · click × to remove
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {selectedCols.length === 0 ? (
+                                        <div className="text-center py-10 text-muted-foreground">
+                                            <Columns className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                                            <p className="text-sm">No columns selected yet</p>
+                                            <p className="text-xs mt-1">Choose from the left panel</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedCols.map(col => (
+                                                <Badge
+                                                    key={col.alias}
+                                                    variant="secondary"
+                                                    className="px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-normal max-w-[220px]"
+                                                >
+                                                    {TYPE_ICON[col.type]}
+                                                    <span className="truncate">{col.label}</span>
+                                                    <button
+                                                        onClick={() => setSelectedCols(s => s.filter(c => c.alias !== col.alias))}
+                                                        className="ml-0.5 hover:text-destructive transition-colors shrink-0"
+                                                    >
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    )}
+                                </CardContent>
+
+                                {/* Active joins summary */}
+                                {activeJoins.length > 0 && (
+                                    <>
+                                        <Separator />
+                                        <CardContent className="pt-4">
+                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
+                                                <Link2 className="h-3 w-3" /> Active Joins
+                                            </p>
+                                            <div className="space-y-1">
+                                                {activeJoins.map(j => (
+                                                    <div key={`${j.fromTable}-${j.toTable}`} className="text-xs font-mono text-muted-foreground flex items-center gap-1.5">
+                                                        <span className="text-foreground">{j.fromTable}</span>
+                                                        <ArrowRight className="h-3 w-3" />
+                                                        <span className="text-primary">{j.toTable}</span>
+                                                        <span className="text-muted-foreground/60">on {j.fromColumn} = {j.toColumn}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </CardContent>
+                                    </>
+                                )}
+
+                                <CardFooter className="border-t pt-4 flex justify-between">
+                                    <Button variant="ghost" onClick={() => setStep(1)}>
+                                        <ArrowLeft className="h-4 w-4 mr-1" /> Back
+                                    </Button>
+                                    <Button
+                                        disabled={selectedCols.length === 0 || previewLoading}
+                                        onClick={handlePreview}
+                                    >
+                                        {previewLoading
+                                            ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Generating...</>
+                                            : <><Eye className="h-4 w-4 mr-2" /> Preview Report</>
+                                        }
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                        </div>
+                    </div>
+                )}
+
+                {/* ══════════════════════════════════════════════════════════════
+                STEP 3 — Preview & export
+            ══════════════════════════════════════════════════════════════ */}
+                {step === 3 && (
+                    <div className="space-y-5">
+
+                        {/* Action bar - Salesforce Style */}
+                        <div className="bg-white dark:bg-slate-900 border rounded-lg shadow-sm">
+                            <div className="border-b px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50 dark:bg-slate-800/50 rounded-t-lg">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-1.5 rounded bg-blue-100 dark:bg-blue-900/30">
+                                        <BarChart2 className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <h2 className="font-semibold text-sm text-slate-800 dark:text-slate-200 uppercase tracking-wide">Report Preview</h2>
+                                        <p className="text-xs text-slate-500">
+                                            {previewRows.length} rows · {selectedCols.length} columns · {baseTable?.label}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setStep(2)}>
+                                        <Filter className="h-3.5 w-3.5 mr-1.5" /> Modify
+                                    </Button>
+
+                                    {/* Export CSV */}
+                                    <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={isExporting}>
+                                        {isExporting
+                                            ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                            : <FileText className="h-3.5 w-3.5 mr-1.5" />
+                                        }
+                                        CSV
+                                    </Button>
+
+                                    {/* Export Excel */}
+                                    <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={isExporting}>
+                                        {isExporting
+                                            ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                            : <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
+                                        }
+                                        Excel
+                                    </Button>
+
+                                    {/* Save dialog */}
+                                    <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+                                        <DialogTrigger asChild>
+                                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                                                <Save className="h-3.5 w-3.5 mr-1.5" /> Save Report
+                                            </Button>
+                                        </DialogTrigger>
+                                        <DialogContent className="sm:max-w-md">
+                                            <DialogHeader>
+                                                <DialogTitle>Save Report</DialogTitle>
+                                            </DialogHeader>
+                                            <div className="py-4 space-y-4">
+                                                <div className="space-y-1.5">
+                                                    <Label>Report name</Label>
+                                                    <Input
+                                                        value={reportName}
+                                                        onChange={e => setReportName(e.target.value)}
+                                                        placeholder="e.g. Monthly Orders by Customer"
+                                                        onKeyDown={e => e.key === "Enter" && handleSaveReport(false)}
+                                                    />
+                                                </div>
+                                                <div className="rounded-lg border p-3 bg-muted/30 text-xs space-y-1 text-muted-foreground">
+                                                    <p><strong className="text-foreground">Template</strong> — saves configuration only. Runs live each time.</p>
+                                                    <p><strong className="text-foreground">Snapshot</strong> — saves current {previewRows.length} rows with the config.</p>
+                                                </div>
+                                            </div>
+                                            <DialogFooter className="gap-2">
+                                                <Button variant="outline" onClick={() => handleSaveReport(false)} disabled={isSaving || !reportName.trim()}>
+                                                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save as Template"}
+                                                </Button>
+                                                <Button onClick={() => handleSaveReport(true)} disabled={isSaving || !reportName.trim()}>
+                                                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Snapshot"}
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+                                </div>
+                            </div>
+
+                            <div className="p-0">
+                                {/* Chart Section */}
+                                {/* {chartConfig?.data && chartConfig.data.length > 0 && (
+                                    <div className="p-4 border-b bg-white dark:bg-slate-900">
+                                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 px-2">Data Overview</p>
+                                        <div className="h-[250px] w-full">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={chartConfig.data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                    <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#cbd5e1' }} />
+                                                    <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                                                    <RechartsTooltip 
+                                                        contentStyle={{ borderRadius: '6px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                    />
+                                                    <Bar dataKey="value" fill="#0ea5e9" radius={[4, 4, 0, 0]} name={chartConfig.yLabel} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                )} */}
+
+                                {/* Data Table Section */}
+                                <ScrollArea className="h-[500px] w-full rounded-b-lg">
+                                    <div className="w-max min-w-full">
+                                        <Table>
+                                            <TableHeader className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 border-b shadow-sm">
+                                                <TableRow className="hover:bg-transparent">
+                                                    <TableHead className="w-10 text-center text-slate-500 font-semibold uppercase text-[10px] tracking-wider">#</TableHead>
+                                                    {selectedCols.map(col => (
+                                                        <TableHead key={col.alias} className="whitespace-nowrap font-semibold uppercase text-[10px] tracking-wider text-slate-600 dark:text-slate-300">
+                                                            <div className="flex items-center gap-1.5">
+                                                                {TYPE_ICON[col.type]}
+                                                                <span>{col.label}</span>
+                                                            </div>
+                                                        </TableHead>
+                                                    ))}
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {previewRows.length === 0 ? (
+                                                    <TableRow>
+                                                        <TableCell colSpan={selectedCols.length + 1} className="text-center py-12 text-muted-foreground">
+                                                            No data returned for this configuration
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ) : (
+                                                    previewRows.map((row, idx) => (
+                                                        <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 transition-colors">
+                                                            <TableCell className="text-center text-slate-400 text-xs w-10 border-r border-slate-100 dark:border-slate-800">
+                                                                {idx + 1}
+                                                            </TableCell>
+                                                            {selectedCols.map(col => {
+                                                                const val = row[col.alias]
+                                                                const display = val === null || val === undefined ? "" : String(val)
+                                                                const isNull = val === null || val === undefined
+                                                                return (
+                                                                    <TableCell key={col.alias} className="max-w-[200px]">
+                                                                        {isNull ? (
+                                                                            <span className="text-muted-foreground/50 italic text-xs">null</span>
+                                                                        ) : col.type === "boolean" ? (
+                                                                            <Badge variant={val ? "default" : "secondary"} className="text-[10px] uppercase font-semibold">
+                                                                                {val ? "true" : "false"}
+                                                                            </Badge>
+                                                                        ) : (
+                                                                            <Tooltip>
+                                                                                <TooltipTrigger asChild>
+                                                                                    <span className="truncate block text-sm max-w-[180px]">{display}</span>
+                                                                                </TooltipTrigger>
+                                                                                {display.length > 30 && (
+                                                                                    <TooltipContent><p className="max-w-xs break-words">{display}</p></TooltipContent>
+                                                                                )}
+                                                                            </Tooltip>
+                                                                        )}
+                                                                    </TableCell>
+                                                                )
+                                                            })}
+                                                        </TableRow>
+                                                    ))
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                    <ScrollBar orientation="horizontal" />
+                                </ScrollArea>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </TooltipProvider>
     )
 }

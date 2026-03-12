@@ -54,7 +54,14 @@ export default function ReportsDashboardPage() {
         try {
             setIsLoading(true)
             const reports = await reportsApi.getAll()
-            const onlyStatic = (reports || []).filter((r: any) => r.configuration?.isStatic === true)
+            
+            // In the new builder, we save `isDynamic: false` when creating a snapshot, 
+            // and `savedData` will exist. 
+            const onlyStatic = (reports || []).filter((r: any) => 
+                r.configuration?.isStatic === true || 
+                r.configuration?.isDynamic === false ||
+                r.configuration?.savedData !== undefined
+            )
             setSavedReports(onlyStatic)
         } catch (error) {
             console.error("Failed to fetch saved reports:", error)
@@ -143,7 +150,13 @@ export default function ReportsDashboardPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    {config.selectedFields.map((fId: string) => {
+                                    {(config.selectedColumns || []).map((col: any) => (
+                                        <TableHead key={col.alias} className="font-bold">
+                                            {col.label}
+                                        </TableHead>
+                                    ))}
+                                    {/* Fallback for old configurations */}
+                                    {!config.selectedColumns && (config.selectedFields || []).map((fId: string) => {
                                         const label = data[0]?.[`__label_${fId}`] || fId.replace(/_/g, ' ')
                                         return (
                                             <TableHead key={fId} className="font-bold">
@@ -156,14 +169,31 @@ export default function ReportsDashboardPage() {
                             <TableBody>
                                 {data.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={config.selectedFields.length} className="py-20 text-center text-muted-foreground">
+                                        <TableCell colSpan={config.selectedColumns?.length || config.selectedFields?.length || 1} className="py-20 text-center text-muted-foreground">
                                             No records found.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     data.map((item: any, idx: number) => (
                                         <TableRow key={idx}>
-                                            {config.selectedFields.map((fId: string) => {
+                                            {(config.selectedColumns || []).map((col: any) => {
+                                                const val = item[col.alias]
+                                                return (
+                                                    <TableCell key={col.alias}>
+                                                        {val === null || val === undefined ? (
+                                                            <span className="text-muted-foreground/50 italic text-xs">null</span>
+                                                        ) : col.type === "boolean" ? (
+                                                            <Badge variant={val ? "default" : "secondary"} className="text-[10px] uppercase font-semibold">
+                                                                {val ? "true" : "false"}
+                                                            </Badge>
+                                                        ) : (
+                                                            String(val)
+                                                        )}
+                                                    </TableCell>
+                                                )
+                                            })}
+                                            {/* Fallback for old configurations */}
+                                            {!config.selectedColumns && (config.selectedFields || []).map((fId: string) => {
                                                 const val = item[fId]
                                                 return (
                                                     <TableCell key={fId}>
@@ -241,13 +271,13 @@ export default function ReportsDashboardPage() {
                                             {report.name}
                                         </TableCell>
                                         <TableCell className="capitalize">
-                                            {report.configuration.baseObject}
+                                            {report.configuration.baseTable || report.configuration.baseObject || "Unknown"}
                                         </TableCell>
                                         <TableCell>
                                             {report.configuration.savedData?.length || 0}
                                         </TableCell>
                                         <TableCell>
-                                            {new Date(report.configuration.savedAt || new Date()).toLocaleDateString()}
+                                            {new Date(report.configuration.savedAt || report.createdAt || new Date()).toLocaleDateString()}
                                         </TableCell>
                                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex justify-end gap-2">
