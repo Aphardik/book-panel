@@ -6,7 +6,7 @@ import {
     ChevronRight, Layers, Table as TableIcon, Save, ArrowLeft,
     Database, Link2, Eye, FileSpreadsheet, FileText,
     BarChart2, RefreshCw, Search, ChevronDown, AlertCircle,
-    Hash, Type, Calendar, ToggleLeft, Columns, Filter
+    Hash, Type, Calendar, ToggleLeft, Columns, Filter, Edit
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/agt-panel/components/ui/card"
 import { Button } from "@/agt-panel/components/ui/button"
@@ -31,6 +31,15 @@ import {
 import {
     Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/agt-panel/components/ui/collapsible"
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SheetFooter,
+} from "@/agt-panel/components/ui/sheet"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/agt-panel/components/ui/select"
 import { useRouter } from "next/navigation"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -66,6 +75,15 @@ interface SelectedColumn {
     alias: string
     label: string
     type: DBColumn["type"]
+    aggregation?: "count" | "sum" | "avg" | "min" | "max"
+}
+
+interface ReportFilter {
+    table: string
+    column: string
+    operator: string
+    value: any
+    label: string
 }
 
 interface ActiveJoin {
@@ -136,10 +154,15 @@ export default function CreateReportPage() {
     const [selectedCols, setSelectedCols] = useState<SelectedColumn[]>([])
     const [activeJoins, setActiveJoins] = useState<ActiveJoin[]>([])
     const [searchCols, setSearchCols] = useState("")
+    const [reportFilters, setReportFilters] = useState<ReportFilter[]>([])
+    const [groupBy, setGroupBy] = useState<{ table: string, column: string }[]>([])
 
     // ── Preview / data state ──
     const [previewRows, setPreviewRows] = useState<Record<string, any>[]>([])
     const [previewLoading, setPreviewLoading] = useState(false)
+    const [previewSearchQuery, setPreviewSearchQuery] = useState("")
+    const [previewFilters, setPreviewFilters] = useState<Record<string, string>>({})
+    const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
 
     // ── Save state ──
     const [saveOpen, setSaveOpen] = useState(false)
@@ -148,6 +171,36 @@ export default function CreateReportPage() {
 
     // ── Export ──
     const [isExporting, setIsExporting] = useState(false)
+
+    const getActiveFilterCount = () => {
+        return Object.values(previewFilters).filter(v => v !== "").length
+    }
+
+    const applyFilters = useCallback((rows: any[]) => {
+        return rows.filter((item: any) => {
+            // Search filter
+            if (previewSearchQuery) {
+                const query = previewSearchQuery.toLowerCase()
+                const matchesSearch = Object.values(item).some(val =>
+                    String(val).toLowerCase().includes(query)
+                )
+                if (!matchesSearch) return false
+            }
+
+            // Dynamic filters based on column alias
+            for (const [alias, filterValue] of Object.entries(previewFilters)) {
+                if (!filterValue) continue
+                const itemValue = String(item[alias] ?? "").toLowerCase()
+                if (!itemValue.includes(filterValue.toLowerCase())) {
+                    return false
+                }
+            }
+
+            return true
+        })
+    }, [previewSearchQuery, previewFilters])
+
+    const filteredPreviewRows = useMemo(() => applyFilters(previewRows), [previewRows, applyFilters])
 
     // ── Table search on step 1 ──
     const [tableSearch, setTableSearch] = useState("")
@@ -313,8 +366,20 @@ export default function CreateReportPage() {
         try {
             const body = {
                 baseTable: baseTable.name,
-                selectedColumns: selectedCols.map(c => ({ table: c.table, column: c.column, alias: c.alias })),
+                selectedColumns: selectedCols.map(c => ({ 
+                    table: c.table, 
+                    column: c.column, 
+                    alias: c.alias,
+                    aggregation: c.aggregation 
+                })),
                 joins: activeJoins,
+                filters: reportFilters.map(f => ({
+                    table: f.table,
+                    column: f.column,
+                    operator: f.operator,
+                    value: f.value
+                })),
+                groupBy: groupBy,
                 limit: 100,
             }
             const res = await apiFetch<{ rows: Record<string, any>[] }>("/api/schema/preview", {
@@ -336,8 +401,20 @@ export default function CreateReportPage() {
         try {
             const body = {
                 baseTable: baseTable.name,
-                selectedColumns: selectedCols.map(c => ({ table: c.table, column: c.column, alias: c.alias })),
+                selectedColumns: selectedCols.map(c => ({ 
+                    table: c.table, 
+                    column: c.column, 
+                    alias: c.alias,
+                    aggregation: c.aggregation 
+                })),
                 joins: activeJoins,
+                filters: reportFilters.map(f => ({
+                    table: f.table,
+                    column: f.column,
+                    operator: f.operator,
+                    value: f.value
+                })),
+                groupBy,
             }
             const res = await apiFetch<{ rows: Record<string, any>[] }>("/api/schema/export", {
                 method: "POST",
@@ -345,9 +422,10 @@ export default function CreateReportPage() {
             })
 
             // Build CSV client-side
+            const filteredResults = applyFilters(res.rows)
             const headers = selectedCols.map(c => c.label)
             const aliasMap = Object.fromEntries(selectedCols.map(c => [c.alias, c.label]))
-            const csvRows = res.rows.map(row =>
+            const csvRows = filteredResults.map(row =>
                 selectedCols.map(c => {
                     const val = row[c.alias] ?? ""
                     const str = String(val).replace(/"/g, '""')
@@ -362,7 +440,7 @@ export default function CreateReportPage() {
             a.download = `report_${baseTable.name}_${Date.now()}.csv`
             a.click()
             URL.revokeObjectURL(url)
-            toast({ title: "Export ready", description: `${res.rows.length} rows downloaded.` })
+            toast({ title: "Export ready", description: `${filteredResults.length} rows downloaded.` })
         } catch (e: any) {
             toast({ title: "Export failed", description: e.message, variant: "destructive" })
         } finally {
@@ -378,21 +456,34 @@ export default function CreateReportPage() {
             const XLSX = await import("xlsx")
             const body = {
                 baseTable: baseTable.name,
-                selectedColumns: selectedCols.map(c => ({ table: c.table, column: c.column, alias: c.alias })),
+                selectedColumns: selectedCols.map(c => ({ 
+                    table: c.table, 
+                    column: c.column, 
+                    alias: c.alias,
+                    aggregation: c.aggregation 
+                })),
                 joins: activeJoins,
+                filters: reportFilters.map(f => ({
+                    table: f.table,
+                    column: f.column,
+                    operator: f.operator,
+                    value: f.value
+                })),
+                groupBy,
             }
             const res = await apiFetch<{ rows: Record<string, any>[] }>("/api/schema/export", {
                 method: "POST",
                 body: JSON.stringify(body),
             })
-            const sheetData = res.rows.map(row =>
+            const filteredResults = applyFilters(res.rows)
+            const sheetData = filteredResults.map(row =>
                 Object.fromEntries(selectedCols.map(c => [c.label, row[c.alias] ?? ""]))
             )
             const ws = XLSX.utils.json_to_sheet(sheetData)
             const wb = XLSX.utils.book_new()
             XLSX.utils.book_append_sheet(wb, ws, baseTable.label)
             XLSX.writeFile(wb, `report_${baseTable.name}_${Date.now()}.xlsx`)
-            toast({ title: "Excel ready", description: `${res.rows.length} rows exported.` })
+            toast({ title: "Excel ready", description: `${filteredResults.length} rows exported.` })
         } catch (e: any) {
             toast({ title: "Excel export failed", description: e.message, variant: "destructive" })
         } finally {
@@ -409,11 +500,13 @@ export default function CreateReportPage() {
                 baseTableLabel: baseTable.label,
                 selectedColumns: selectedCols,
                 joins: activeJoins,
+                filters: reportFilters,
+                groupBy: groupBy,
                 isDynamic: !withData,
                 createdAt: new Date().toISOString(),
             }
             if (withData) {
-                configuration.savedData = previewRows
+                configuration.savedData = filteredPreviewRows
                 configuration.savedAt = new Date().toISOString()
             }
             await reportsApi.create({ name: reportName, configuration })
@@ -466,9 +559,106 @@ export default function CreateReportPage() {
         };
     }, [previewRows, selectedCols]);
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // RENDER
-    // ═══════════════════════════════════════════════════════════════════════════
+// ─── Filter Form Component ────────────────────────────────────────────────
+function FilterForm({ tables, onAdd }: { tables: (DBTable | null)[], onAdd: (f: ReportFilter) => void }) {
+    const [selectedTable, setSelectedTable] = useState<string>("")
+    const [selectedColumn, setSelectedColumn] = useState<string>("")
+    const [operator, setOperator] = useState("=")
+    const [value, setValue] = useState("")
+
+    const currentTable = tables.find(t => t?.name === selectedTable)
+    const currentColumn = currentTable?.columns.find(c => c.name === selectedColumn)
+
+    const handleSubmit = () => {
+        if (!selectedTable || !selectedColumn) return
+        onAdd({
+            table: selectedTable,
+            column: selectedColumn,
+            operator,
+            value,
+            label: `${currentTable?.label}: ${currentColumn?.label}`
+        })
+        // Reset
+        setSelectedColumn("")
+        setValue("")
+    }
+
+    return (
+        <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+                <Label className="text-xs">Table</Label>
+                <Select value={selectedTable} onValueChange={setSelectedTable}>
+                    <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Select table" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {tables.map(t => t ? (
+                            <SelectItem key={t.name} value={t.name}>{t.label}</SelectItem>
+                        ) : null)}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {selectedTable && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                    <Label className="text-xs">Column</Label>
+                    <Select value={selectedColumn} onValueChange={setSelectedColumn}>
+                        <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Select column" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {currentTable?.columns.map(c => (
+                                <SelectItem key={c.name} value={c.name}>{c.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label className="text-xs">Operator</Label>
+                    <Select value={operator} onValueChange={setOperator}>
+                        <SelectTrigger className="h-9 text-xs">
+                            <SelectValue placeholder="Operator" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="=">Equals (=)</SelectItem>
+                            <SelectItem value="!=">Not Equals (!=)</SelectItem>
+                            <SelectItem value="LIKE">Contains (LIKE)</SelectItem>
+                            <SelectItem value="ILIKE">Contains Case Insensitive (ILIKE)</SelectItem>
+                            <SelectItem value=">">Greater than (&gt;)</SelectItem>
+                            <SelectItem value="<">Less than (&lt;)</SelectItem>
+                            <SelectItem value=">=">Greater or Equal (&ge;)</SelectItem>
+                            <SelectItem value="<=">Less or Equal (&le;)</SelectItem>
+                            <SelectItem value="IS NULL">Is Null</SelectItem>
+                            <SelectItem value="IS NOT NULL">Is Not Null</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-xs">Value</Label>
+                    <Input 
+                        className="h-9 text-xs" 
+                        value={value} 
+                        onChange={e => setValue(e.target.value)} 
+                        disabled={operator.includes("NULL")}
+                    />
+                </div>
+            </div>
+
+            <DialogFooter>
+                <Button onClick={handleSubmit} disabled={!selectedTable || !selectedColumn} className="w-full">
+                    Add Filter
+                </Button>
+            </DialogFooter>
+        </div>
+    )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════════════════
     return (
         <TooltipProvider>
             <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -833,25 +1023,108 @@ export default function CreateReportPage() {
                                             <p className="text-xs mt-1">Choose from the left panel</p>
                                         </div>
                                     ) : (
-                                        <div className="flex flex-wrap gap-2">
-                                            {selectedCols.map(col => (
-                                                <Badge
-                                                    key={col.alias}
-                                                    variant="secondary"
-                                                    className="px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-normal max-w-[220px]"
-                                                >
-                                                    {TYPE_ICON[col.type]}
-                                                    <span className="truncate">{col.label}</span>
+                                        <div className="space-y-2">
+                                            {selectedCols.map((col, idx) => (
+                                                <div key={col.alias} className="flex items-center gap-2 p-2 rounded-lg bg-muted/40 border group">
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                        <span className="shrink-0">{TYPE_ICON[col.type]}</span>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="text-xs font-bold truncate">{col.label}</span>
+                                                            <span className="text-[10px] text-muted-foreground truncate uppercase">{col.table}:{col.column}</span>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Aggregation Selector */}
+                                                    <Select 
+                                                        value={col.aggregation || "none"} 
+                                                        onValueChange={(val) => {
+                                                            setSelectedCols(prev => prev.map(c => 
+                                                                c.alias === col.alias ? { ...c, aggregation: val === "none" ? undefined : val as any } : c
+                                                            ))
+                                                        }}
+                                                    >
+                                                        <SelectTrigger className="h-7 w-[100px] text-[10px] py-0 px-2">
+                                                            <SelectValue placeholder="Agg" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="none" className="text-[10px]">None</SelectItem>
+                                                            <SelectItem value="count" className="text-[10px]">Count</SelectItem>
+                                                            {col.type === "number" && (
+                                                                <>
+                                                                    <SelectItem value="sum" className="text-[10px]">Sum</SelectItem>
+                                                                    <SelectItem value="avg" className="text-[10px]">Avg</SelectItem>
+                                                                </>
+                                                            )}
+                                                            <SelectItem value="min" className="text-[10px]">Min</SelectItem>
+                                                            <SelectItem value="max" className="text-[10px]">Max</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+
+                                                    {/* Group By Toggle */}
+                                                    <Button 
+                                                        variant={groupBy.some(g => g.table === col.table && g.column === col.column) ? "default" : "outline"} 
+                                                        size="sm" 
+                                                        className="h-7 px-2 text-[10px]"
+                                                        onClick={() => {
+                                                            setGroupBy(prev => {
+                                                                const exists = prev.some(g => g.table === col.table && g.column === col.column)
+                                                                if (exists) return prev.filter(g => !(g.table === col.table && g.column === col.column))
+                                                                return [...prev, { table: col.table, column: col.column }]
+                                                            })
+                                                        }}
+                                                    >
+                                                        Group
+                                                    </Button>
+
                                                     <button
                                                         onClick={() => setSelectedCols(s => s.filter(c => c.alias !== col.alias))}
-                                                        className="ml-0.5 hover:text-destructive transition-colors shrink-0"
+                                                        className="p-1 hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
                                                     >
-                                                        <X className="h-3 w-3" />
+                                                        <X className="h-3.5 w-3.5" />
                                                     </button>
-                                                </Badge>
+                                                </div>
                                             ))}
                                         </div>
                                     )}
+                                </CardContent>
+
+                                {/* Backend Filters Section */}
+                                <Separator />
+                                <CardContent className="pt-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                                            <Filter className="h-3 w-3" /> Report Filters
+                                        </p>
+                                        <Dialog>
+                                            <DialogTrigger asChild>
+                                                <Button variant="outline" size="sm" className="h-7 text-[10px]">
+                                                    <Plus className="h-3 w-3 mr-1" /> Add Filter
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="sm:max-w-[425px]">
+                                                <DialogHeader>
+                                                    <DialogTitle>Add Report Filter</DialogTitle>
+                                                </DialogHeader>
+                                                <FilterForm 
+                                                    tables={[baseTable, ...tables.filter(t => isTableJoined(t.name))]} 
+                                                    onAdd={(filter) => setReportFilters(prev => [...prev, filter])}
+                                                />
+                                            </DialogContent>
+                                        </Dialog>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {reportFilters.length === 0 && (
+                                            <p className="text-[10px] text-muted-foreground italic">No backend filters applied</p>
+                                        )}
+                                        {reportFilters.map((f, i) => (
+                                            <Badge key={i} variant="outline" className="text-[10px] py-1 px-2 flex items-center gap-1 bg-amber-500/5 border-amber-500/20">
+                                                <span className="font-bold">{f.label}</span>
+                                                <span className="opacity-60">{f.operator}</span>
+                                                <span>{String(f.value)}</span>
+                                                <X className="h-3 w-3 ml-1 cursor-pointer hover:text-destructive" onClick={() => setReportFilters(prev => prev.filter((_, idx) => idx !== i))} />
+                                            </Badge>
+                                        ))}
+                                    </div>
                                 </CardContent>
 
                                 {/* Active joins summary */}
@@ -911,13 +1184,22 @@ export default function CreateReportPage() {
                                     <div>
                                         <h2 className="font-semibold text-sm text-slate-800 dark:text-slate-200 uppercase tracking-wide">Report Preview</h2>
                                         <p className="text-xs text-slate-500">
-                                            {previewRows.length} rows · {selectedCols.length} columns · {baseTable?.label}
+                                            {filteredPreviewRows.length} rows · {selectedCols.length} columns · {baseTable?.label}
                                         </p>
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setIsFilterPanelOpen(true)} className={cn("relative", getActiveFilterCount() > 0 && "border-primary text-primary bg-primary/5")}>
+                                        <Filter className="h-3.5 w-3.5 mr-1.5" />
+                                        Filter
+                                        {getActiveFilterCount() > 0 && (
+                                            <Badge className="ml-1.5 h-4 min-w-[16px] px-1 flex items-center justify-center font-bold text-[9px] bg-primary text-primary-foreground">
+                                                {getActiveFilterCount()}
+                                            </Badge>
+                                        )}
+                                    </Button>
                                     <Button variant="outline" size="sm" onClick={() => setStep(2)}>
-                                        <Filter className="h-3.5 w-3.5 mr-1.5" /> Modify
+                                        <Edit className="h-3.5 w-3.5 mr-1.5" /> Modify
                                     </Button>
 
                                     {/* Export CSV */}
@@ -977,6 +1259,17 @@ export default function CreateReportPage() {
                                 </div>
                             </div>
 
+                            <div className="p-4 border-b bg-slate-50/50 dark:bg-slate-800/30 flex items-center gap-4">
+                                <div className="relative w-full max-w-sm">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search preview data..."
+                                        className="pl-9 h-9 text-sm"
+                                        value={previewSearchQuery}
+                                        onChange={(e) => setPreviewSearchQuery(e.target.value)}
+                                    />
+                                </div>
+                            </div>
                             <div className="p-0">
                                 {/* Chart Section */}
                                 {/* {chartConfig?.data && chartConfig.data.length > 0 && (
@@ -1016,14 +1309,14 @@ export default function CreateReportPage() {
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {previewRows.length === 0 ? (
+                                                {filteredPreviewRows.length === 0 ? (
                                                     <TableRow>
                                                         <TableCell colSpan={selectedCols.length + 1} className="text-center py-12 text-muted-foreground">
-                                                            No data returned for this configuration
+                                                            No data matching your search/filters
                                                         </TableCell>
                                                     </TableRow>
                                                 ) : (
-                                                    previewRows.map((row, idx) => (
+                                                    filteredPreviewRows.map((row, idx) => (
                                                         <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 transition-colors">
                                                             <TableCell className="text-center text-slate-400 text-xs w-10 border-r border-slate-100 dark:border-slate-800">
                                                                 {idx + 1}
@@ -1065,6 +1358,41 @@ export default function CreateReportPage() {
                         </div>
                     </div>
                 )}
+                {/* Filter Sidebar */}
+                <Sheet open={isFilterPanelOpen} onOpenChange={setIsFilterPanelOpen}>
+                    <SheetContent className="w-[380px] p-0 border-l flex flex-col shadow-2xl z-[150]">
+                        <SheetHeader className="p-6 border-b">
+                            <div className="flex items-center gap-3">
+                                <Filter className="h-5 w-5 text-primary" />
+                                <SheetTitle>Filter Preview</SheetTitle>
+                            </div>
+                            <SheetDescription>Apply local filters to the preview results</SheetDescription>
+                        </SheetHeader>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {(selectedCols || []).map((col: any) => (
+                                <div key={col.alias} className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{col.label}</Label>
+                                    <Input
+                                        placeholder={`Search in ${col.label}...`}
+                                        value={previewFilters[col.alias] || ""}
+                                        onChange={(e) => setPreviewFilters(prev => ({ ...prev, [col.alias]: e.target.value }))}
+                                        className="h-9"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+
+                        <SheetFooter className="p-6 border-t bg-muted/20">
+                            <Button variant="ghost" className="w-full mr-2" onClick={() => setPreviewFilters({})}>
+                                Reset
+                            </Button>
+                            <Button className="w-full" onClick={() => setIsFilterPanelOpen(false)}>
+                                Done
+                            </Button>
+                        </SheetFooter>
+                    </SheetContent>
+                </Sheet>
             </div>
         </TooltipProvider>
     )

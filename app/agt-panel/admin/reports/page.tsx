@@ -12,7 +12,8 @@ import {
     ArrowLeft,
     Search,
     Calendar,
-    ArrowRight
+    ArrowRight,
+    Filter
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/agt-panel/components/ui/card"
 import { Button } from "@/agt-panel/components/ui/button"
@@ -34,6 +35,17 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/agt-panel/components/ui/alert-dialog"
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SheetFooter,
+} from "@/agt-panel/components/ui/sheet"
+import { Label } from "@/agt-panel/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/agt-panel/components/ui/select"
+import { cn } from "@/agt-panel/lib/utils"
 import { useRouter } from "next/navigation"
 
 export default function ReportsDashboardPage() {
@@ -44,6 +56,9 @@ export default function ReportsDashboardPage() {
     const [searchQuery, setSearchQuery] = useState("")
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
     const [reportToDelete, setReportToDelete] = useState<number | string | null>(null)
+    const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
+    const [previewSearchQuery, setPreviewSearchQuery] = useState("")
+    const [previewFilters, setPreviewFilters] = useState<Record<string, string>>({})
     const { toast } = useToast()
 
     useEffect(() => {
@@ -118,7 +133,33 @@ export default function ReportsDashboardPage() {
 
     if (selectedReport) {
         const config = selectedReport.configuration
-        const data = config.savedData || []
+        const rawData = config.savedData || []
+
+        const getActiveFilterCount = () => {
+            return Object.values(previewFilters).filter(v => v !== "").length
+        }
+
+        const filteredData = rawData.filter((item: any) => {
+            // Search filter
+            if (previewSearchQuery) {
+                const query = previewSearchQuery.toLowerCase()
+                const matchesSearch = Object.values(item).some(val => 
+                    String(val).toLowerCase().includes(query)
+                )
+                if (!matchesSearch) return false
+            }
+
+            // Dynamic filters based on column alias
+            for (const [alias, filterValue] of Object.entries(previewFilters)) {
+                if (!filterValue) continue
+                const itemValue = String(item[alias] ?? "").toLowerCase()
+                if (!itemValue.includes(filterValue.toLowerCase())) {
+                    return false
+                }
+            }
+
+            return true
+        })
 
         return (
             <div className="container mx-auto px-4">
@@ -133,6 +174,15 @@ export default function ReportsDashboardPage() {
                         </div>
                     </div>
                     <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setIsFilterPanelOpen(true)} className={cn("relative", getActiveFilterCount() > 0 && "border-primary text-primary bg-primary/5")}>
+                            <Filter className="mr-2 h-4 w-4" /> 
+                            Filters
+                            {getActiveFilterCount() > 0 && (
+                                <Badge className="ml-2 h-5 min-w-[20px] px-1.5 flex items-center justify-center font-bold text-[10px]">
+                                    {getActiveFilterCount()}
+                                </Badge>
+                            )}
+                        </Button>
                         <Button variant="outline" onClick={() => handleExport(selectedReport)}>
                             <Download className="mr-2 h-4 w-4" /> Export CSV
                         </Button>
@@ -142,22 +192,34 @@ export default function ReportsDashboardPage() {
                     </div>
                 </div>
 
+                <div className="mb-4">
+                    <div className="relative w-full max-w-md">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Search records in this report..."
+                            className="pl-10 h-10"
+                            value={previewSearchQuery}
+                            onChange={(e) => setPreviewSearchQuery(e.target.value)}
+                        />
+                    </div>
+                </div>
+
                 <Card className="shadow-sm border-muted">
                     <CardHeader>
-                        <CardTitle className="text-xl">Report Records ({data.length})</CardTitle>
+                        <CardTitle className="text-xl">Report Records ({filteredData.length})</CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
                         <Table>
                             <TableHeader>
                                 <TableRow>
                                     {(config.selectedColumns || []).map((col: any) => (
-                                        <TableHead key={col.alias} className="font-bold">
+                                        <TableHead key={col.alias} className="font-bold whitespace-nowrap">
                                             {col.label}
                                         </TableHead>
                                     ))}
                                     {/* Fallback for old configurations */}
                                     {!config.selectedColumns && (config.selectedFields || []).map((fId: string) => {
-                                        const label = data[0]?.[`__label_${fId}`] || fId.replace(/_/g, ' ')
+                                        const label = rawData[0]?.[`__label_${fId}`] || fId.replace(/_/g, ' ')
                                         return (
                                             <TableHead key={fId} className="font-bold">
                                                 {label}
@@ -167,19 +229,19 @@ export default function ReportsDashboardPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {data.length === 0 ? (
+                                {filteredData.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={config.selectedColumns?.length || config.selectedFields?.length || 1} className="py-20 text-center text-muted-foreground">
-                                            No records found.
+                                            No records found matching your filters.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    data.map((item: any, idx: number) => (
+                                    filteredData.map((item: any, idx: number) => (
                                         <TableRow key={idx}>
                                             {(config.selectedColumns || []).map((col: any) => {
                                                 const val = item[col.alias]
                                                 return (
-                                                    <TableCell key={col.alias}>
+                                                    <TableCell key={col.alias} className="whitespace-nowrap">
                                                         {val === null || val === undefined ? (
                                                             <span className="text-muted-foreground/50 italic text-xs">null</span>
                                                         ) : col.type === "boolean" ? (
@@ -208,6 +270,57 @@ export default function ReportsDashboardPage() {
                         </Table>
                     </CardContent>
                 </Card>
+
+                {/* Filter Sidebar */}
+                <Sheet open={isFilterPanelOpen} onOpenChange={setIsFilterPanelOpen}>
+                    <SheetContent className="w-[380px] p-0 border-l flex flex-col shadow-2xl">
+                        <SheetHeader className="p-6 border-b">
+                            <div className="flex items-center gap-3">
+                                <Filter className="h-5 w-5 text-primary" />
+                                <SheetTitle>Filter Records</SheetTitle>
+                            </div>
+                            <SheetDescription>Apply local filters to the report results</SheetDescription>
+                        </SheetHeader>
+                        
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {(config.selectedColumns || []).map((col: any) => (
+                                <div key={col.alias} className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{col.label}</Label>
+                                    <Input 
+                                        placeholder={`Search in ${col.label}...`} 
+                                        value={previewFilters[col.alias] || ""}
+                                        onChange={(e) => setPreviewFilters(prev => ({ ...prev, [col.alias]: e.target.value }))}
+                                        className="h-9"
+                                    />
+                                </div>
+                            ))}
+                            {/* Fallback for old configs */}
+                            {!config.selectedColumns && (config.selectedFields || []).map((fId: string) => {
+                                const label = rawData[0]?.[`__label_${fId}`] || fId.replace(/_/g, ' ')
+                                return (
+                                    <div key={fId} className="space-y-2">
+                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</Label>
+                                        <Input 
+                                            placeholder={`Search in ${label}...`} 
+                                            value={previewFilters[fId] || ""}
+                                            onChange={(e) => setPreviewFilters(prev => ({ ...prev, [fId]: e.target.value }))}
+                                            className="h-9"
+                                        />
+                                    </div>
+                                )
+                            })}
+                        </div>
+
+                        <SheetFooter className="p-6 border-t bg-muted/20">
+                            <Button variant="ghost" className="w-full mr-2" onClick={() => setPreviewFilters({})}>
+                                Reset
+                            </Button>
+                            <Button className="w-full" onClick={() => setIsFilterPanelOpen(false)}>
+                                Done
+                            </Button>
+                        </SheetFooter>
+                    </SheetContent>
+                </Sheet>
             </div>
         )
     }
